@@ -39,4 +39,3 @@ get('comments?per_page=6&_fields=id,author_name,content,date').then(({ data }) =
     $('comments').append(d);
   })).catch(() => $('comments').append(el('em', '', 'Błąd ładowania')));
 
-get('../').then(({ data }) => { $('site').textContent = data.name; document.title = data.name; }).catch(() => {});

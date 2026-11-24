@@ -7,6 +7,6 @@ const comments = [['Anna', 'Świetny artykuł, dzięki za konkretne przykłady!'
 const totals = { 'posts?status=publish': 42, 'posts?status=draft': 7, 'pages?status=publish': 12, comments: 128, users: 5 };
 export default path => {
   const key = Object.keys(totals).find(k => path.startsWith(k));
-  const data = path.startsWith('posts?per') ? posts : path.startsWith('comments?per') ? comments : path === '../' ? { name: 'Moja strona' } : [];
+  const data = path.startsWith('posts?per') ? posts : path.startsWith('comments?per') ? comments : path === '../' ? {} : [];
   return { data, total: totals[key] ?? 0 };
 };
