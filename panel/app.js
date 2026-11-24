@@ -4,13 +4,15 @@ const txt = h => new DOMParser().parseFromString(h, 'text/html').body.textConten
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls || '', textContent: text ?? '' });
 
+const demo = location.search.includes('demo') && (await import('./mock.js')).default;
 async function get(path) {
+  if (demo) return demo(path);
   const r = await fetch(api + path, { headers: { 'X-WP-Nonce': nonce }, credentials: 'same-origin' });
   if (!r.ok) throw new Error(r.status);
   return { data: await r.json(), total: +r.headers.get('X-WP-Total') };
 }
 
-const nonce = await fetch('/wp-admin/admin-ajax.php?action=rest-nonce', { credentials: 'same-origin' })
+const nonce = demo ? '' : await fetch('/wp-admin/admin-ajax.php?action=rest-nonce', { credentials: 'same-origin' })
   .then(r => (r.ok ? r.text() : Promise.reject()))
   .catch(() => { location.href = '/wp-login.php?redirect_to=' + encodeURIComponent(location.pathname); return ''; });
 
