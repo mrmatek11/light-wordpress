@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>ClassicPress QUnit Test Suite</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<link href='../../tests/phpunit/data/images/test-image.ico' rel='icon'>
+
+		<!-- Dependencies -->
+		<script src="../../src/wp-includes/js/jquery/jquery.js"></script>
+		<script src="../../src/wp-includes/js/jquery/jquery-migrate.js"></script>
+		<script src="../../src/wp-includes/js/jquery/ui/core.js"></script>
+		<script src="../../src/wp-includes/js/underscore.js"></script>
+		<script src="../../src/wp-includes/js/backbone.js"></script>
+		<script src="../../src/wp-includes/js/wp-backbone.js"></script>
+		<script src="../../src/wp-includes/js/zxcvbn.min.js"></script>
+		<script>
+			window._wpUtilSettings = {
+				'ajax': {
+					'url': '\/wp-admin\/admin-ajax.php'
+				}
+			};
+		</script>
+		<script>
+			var wpApiSettings = {
+				root: 'http://localhost/wp-json/',
+				nonce: 'not_a_real_nonce'
+			};
+		</script>
+		<script src="../../src/wp-includes/js/wp-util.js"></script>
+		<script src="../../src/wp-includes/js/dist/dom-ready.js"></script>
+		<script src="../../src/wp-includes/js/dist/hooks.js"></script>
+		<script src="../../src/wp-includes/js/dist/i18n.js"></script>
+		<script src="../../src/wp-includes/js/dist/a11y.js"></script>
+		<script>
+			window._wpMediaModelsL10n = {"settings":{"ajaxurl":"\/wp-admin\/admin-ajax.php","post":{"id":0}}};
+		</script>
+		<script src="../../src/wp-includes/js/media-models.js"></script>
+		<script>
+			window.userSettings = {"url":"\/","uid":"0","time":"1493325477","secure":""};
+		</script>
+		<script src="../../src/wp-includes/js/utils.js"></script>
+		<script>
+			window.pluploadL10n = {"queue_limit_exceeded":"You have attempted to queue too many files.","file_exceeds_size_limit":"%s exceeds the maximum upload size for this site.","zero_byte_file":"This file is empty. Please try another.","invalid_filetype":"Sorry, you are not allowed to upload this file type.","not_an_image":"This file is not an image. Please try another.","image_memory_exceeded":"Memory exceeded. Please try another smaller file.","image_dimensions_exceeded":"This is larger than the maximum size. Please try another.","default_error":"An error occurred in the upload. Please try again later.","missing_upload_url":"There was a configuration error. Please contact the server administrator.","upload_limit_exceeded":"You may only upload 1 file.","http_error":"HTTP error.","upload_failed":"Upload failed.","big_upload_failed":"Please try uploading this file with the %1$sbrowser uploader%2$s.","big_upload_queued":"%s exceeds the maximum upload size for the multi-file uploader when used in your browser.","io_error":"IO error.","security_error":"Security error.","file_cancelled":"File canceled.","upload_stopped":"Upload stopped.","dismiss":"Dismiss","crunching":"Crunching\u2026","deleted":"moved to the Trash.","error_uploading":"\u201c%s\u201d has failed to upload."};
+			window._wpPluploadSettings = {"defaults":{"runtimes":"html5,flash,silverlight,html4","file_data_name":"async-upload","url":"\/wp-admin\/async-upload.php","flash_swf_url":"http:\/\/src.wordpress-develop.dev\/wp-includes\/js\/plupload\/plupload.flash.swf","silverlight_xap_url":"http:\/\/src.wordpress-develop.dev\/wp-includes\/js\/plupload\/plupload.silverlight.xap","filters":{"max_file_size":"2097152b","mime_types":[{"extensions":"jpg,jpeg,jpe,gif,png,bmp,tiff,tif,ico,asf,asx,wmv,wmx,wm,avi,divx,flv,mov,qt,mpeg,mpg,mpe,mp4,m4v,ogv,webm,mkv,3gp,3gpp,3g2,3gp2,txt,asc,c,cc,h,srt,csv,tsv,ics,rtx,css,vtt,dfxp,mp3,m4a,m4b,ra,ram,wav,ogg,oga,mid,midi,wma,wax,mka,rtf,js,pdf,class,tar,zip,gz,gzip,rar,7z,psd,xcf,doc,pot,pps,ppt,wri,xla,xls,xlt,xlw,mdb,mpp,docx,docm,dotx,dotm,xlsx,xlsm,xlsb,xltx,xltm,xlam,pptx,pptm,ppsx,ppsm,potx,potm,ppam,sldx,sldm,onetoc,onetoc2,onetmp,onepkg,oxps,xps,odt,odp,ods,odg,odc,odb,odf,wp,wpd,key,numbers,pages"}]},"multipart_params":{"action":"upload-attachment","_wpnonce":"87fa5740b8"}},"browser":{"mobile":false,"supported":true},"limitExceeded":false};
+		</script>
+		<script src="../../src/wp-includes/js/plupload/wp-plupload.js"></script>
+		<script>
+			window.mejsL10n = {"language":"en-US","strings":{"Close":"Close","Fullscreen":"Fullscreen","Turn off Fullscreen":"Turn off Fullscreen","Go Fullscreen":"Go Fullscreen","Download File":"Download File","Download Video":"Download Video","Play":"Play","Pause":"Pause","Captions\/Subtitles":"Captions\/Subtitles","None":"None","Time Slider":"Time Slider","Skip back %1 seconds":"Skip back %1 seconds","Video Player":"Video Player","Audio Player":"Audio Player","Volume Slider":"Volume Slider","Mute Toggle":"Mute Toggle","Unmute":"Unmute","Mute":"Mute","Use Up\/Down Arrow keys to increase or decrease volume.":"Use Up\/Down Arrow keys to increase or decrease volume.","Use Left\/Right Arrow keys to advance one second, Up\/Down arrows to advance ten seconds.":"Use Left\/Right Arrow keys to advance one second, Up\/Down arrows to advance ten seconds."}};
+			window._wpmejsSettings = {"pluginPath":"\/wp-includes\/js\/mediaelement\/"};
+		</script>
+		<script src="../../src/wp-includes/js/mediaelement/mediaelement-and-player.min.js"></script>
+		<script src="../../src/wp-includes/js/mediaelement/wp-mediaelement.js"></script>
+		<script>
+			window._wpMediaViewsL10n = {"url":"URL","addMedia":"Add Media","search":"Search","select":"Select","cancel":"Cancel","update":"Update","replace":"Replace","remove":"Remove","back":"Back","selected":"%d selected","dragInfo":"Drag and drop to reorder media files.","uploadFilesTitle":"Upload Files","uploadImagesTitle":"Upload Images","mediaLibraryTitle":"Media Library","insertMediaTitle":"Insert Media","createNewGallery":"Create a new gallery","createNewPlaylist":"Create a new playlist","createNewVideoPlaylist":"Create a new video playlist","returnToLibrary":"\u2190 Return to library","allMediaItems":"All media items","allDates":"All dates","noItemsFound":"No items found.","insertIntoPost":"Insert into post","unattached":"Unattached","trash":"Trash","uploadedToThisPost":"Uploaded to this post","warnDelete":"You are about to permanently delete this item.\nThis will remove it from your site.\n 'Cancel' to stop, 'OK' to delete.","warnBulkDelete":"You are about to permanently delete these items.\nThis will remove them from your site.\n 'Cancel' to stop, 'OK' to delete.","warnBulkTrash":"You are about to trash these items.\n  'Cancel' to stop, 'OK' to delete.","bulkSelect":"Bulk Select","cancelSelection":"Cancel Selection","trashSelected":"Trash Selected","untrashSelected":"Untrash Selected","deleteSelected":"Delete Selected","deletePermanently":"Delete Permanently","apply":"Apply","filterByDate":"Filter by date","filterByType":"Filter by type","searchMediaLabel":"Search Media","searchMediaPlaceholder":"Search media items...","noMedia":"No media files found.","attachmentDetails":"Attachment Details","insertFromUrlTitle":"Insert from URL","setFeaturedImageTitle":"Featured Image","setFeaturedImage":"Set featured image","createGalleryTitle":"Create Gallery","editGalleryTitle":"Edit Gallery","cancelGalleryTitle":"\u2190 Cancel Gallery","insertGallery":"Insert gallery","updateGallery":"Update gallery","addToGallery":"Add to gallery","addToGalleryTitle":"Add to Gallery","reverseOrder":"Reverse order","imageDetailsTitle":"Image Details","imageReplaceTitle":"Replace Image","imageDetailsCancel":"Cancel Edit","editImage":"Edit Image","chooseImage":"Choose Image","selectAndCrop":"Select and Crop","skipCropping":"Skip Cropping","cropImage":"Crop Image","cropYourImage":"Crop your image","cropping":"Cropping\u2026","suggestedDimensions":"Suggested image dimensions:","cropError":"There has been an error cropping your image.","audioDetailsTitle":"Audio Details","audioReplaceTitle":"Replace Audio","audioAddSourceTitle":"Add Audio Source","audioDetailsCancel":"Cancel Edit","videoDetailsTitle":"Video Details","videoReplaceTitle":"Replace Video","videoAddSourceTitle":"Add Video Source","videoDetailsCancel":"Cancel Edit","videoSelectPosterImageTitle":"Select Poster Image","videoAddTrackTitle":"Add Subtitles","playlistDragInfo":"Drag and drop to reorder tracks.","createPlaylistTitle":"Create Audio Playlist","editPlaylistTitle":"Edit Audio Playlist","cancelPlaylistTitle":"\u2190 Cancel Audio Playlist","insertPlaylist":"Insert audio playlist","updatePlaylist":"Update audio playlist","addToPlaylist":"Add to audio playlist","addToPlaylistTitle":"Add to Audio Playlist","videoPlaylistDragInfo":"Drag and drop to reorder videos.","createVideoPlaylistTitle":"Create Video Playlist","editVideoPlaylistTitle":"Edit Video Playlist","cancelVideoPlaylistTitle":"\u2190 Cancel Video Playlist","insertVideoPlaylist":"Insert video playlist","updateVideoPlaylist":"Update video playlist","addToVideoPlaylist":"Add to video playlist","addToVideoPlaylistTitle":"Add to Video Playlist","settings":{"tabs":[],"tabUrl":"http:\/\/src.wordpress-develop.dev\/wp-admin\/media-upload.php?chromeless=1","mimeTypes":{"image":"Images","audio":"Audio","video":"Video"},"captions":true,"nonce":{"sendToEditor":"9585d11de6"},"post":{"id":0},"defaultProps":{"link":"none","align":"","size":""},"attachmentCounts":{"audio":1,"video":1},"embedExts":["mp3","ogg","wma","m4a","wav","mp4","m4v","webm","ogv","wmv","flv"],"embedMimes":{"mp3":"audio\/mpeg","ogg":"audio\/ogg","wma":"audio\/x-ms-wma","m4a":"audio\/mpeg","wav":"audio\/wav","mp4":"video\/mp4","m4v":"video\/mp4","webm":"video\/webm","ogv":"video\/ogg","wmv":"video\/x-ms-wmv","flv":"video\/x-flv"},"contentWidth":525,"months":[{"year":"2017","month":"4","text":"April 2017"}],"mediaTrash":0}};		</script>
+		<script src="../../src/wp-includes/js/media-views.js"></script>
+		<script src="../../src/wp-includes/js/media-editor.js"></script>
+		<script src="../../src/wp-includes/js/media-audiovideo.js"></script>
+		<script src="../../src/wp-includes/js/mce-view.js"></script>
+		<script src="../../src/wp-includes/js/sortable.min.js"></script>
+
+		<!-- QUnit -->
+		<link rel="stylesheet" href="../../node_modules/qunit/qunit/qunit.css" type="text/css" media="screen" />
+		<script src="../../node_modules/qunit/qunit/qunit.js"></script>
+		<script src="../../node_modules/sinon/pkg/sinon.js"></script>
+		<script src="../../node_modules/sinon-test/dist/sinon-test.js"></script>
+		<script>
+			var qTest = QUnit.test, sTest = sinonTest( sinon );
+
+			QUnit.config.hidepassed = false;
+
+			QUnit.test = function( testName, callback ) {
+				return qTest( testName, sTest(callback) );
+			};
+		</script>
+	</head>
+	<body>
+		<div id="qunit"></div>
+		<div id="qunit-fixture">
+			<script src="fixtures/wp-api-generated.js"></script>
+			<script src="fixtures/js-widgets-endpoint.js"></script>
+			<script src="fixtures/wp-api.js"></script>
+			<script src="fixtures/common.js"></script>
+		</div>
+
+		<!-- Tested files -->
+		<script src="../../src/wp-admin/js/password-strength-meter.js"></script>
+		<script src="../../src/wp-admin/js/postbox.js"></script>
+		<script src="../../src/wp-includes/js/dist/vendor/moment.js"></script>
+		<script src="../../src/wp-includes/js/dist/i18n.js"></script>
+		<script src="../../src/wp-includes/js/shortcode.js"></script>
+		<script src="../../src/wp-includes/js/wp-sanitize.js"></script>
+		<script src="../../src/wp-includes/js/api-request.js"></script>
+		<script src="../../src/wp-includes/js/wp-api.js"></script>
+
+		<script src='../../src/wp-includes/js/jquery/ui/core.js'></script>
+		<script src='../../src/wp-includes/js/jquery/ui/mouse.js'></script>
+		<script src='../../src/wp-includes/js/jquery/ui/sortable.js'></script>
+		<script src='../../src/wp-includes/js/jquery/ui/draggable.js'></script>
+		<script src='../../src/wp-includes/js/jquery/ui/droppable.js'></script>
+
+		<script src="../../src/wp-admin/js/word-count.js"></script>
+
+		<!-- Unit tests -->
+		<script src="wp-admin/js/password-strength-meter.js"></script>
+		<script src="wp-includes/js/shortcode.js"></script>
+		<script src="wp-includes/js/api-request.js"></script>
+		<script src="wp-includes/js/jquery.js"></script>
+		<script src="wp-includes/js/wp-api.js"></script>
+		<script src="wp-admin/js/word-count.js"></script>
+
+		<!-- TinyMCE tests -->
+		<script src="../../src/wp-includes/js/tinymce/tinymce.min.js"></script>
+		<script src="../../src/wp-includes/js/tinymce/plugins/wptextpattern/plugin.js"></script>
+		<script src="wp-includes/js/tinymce/plugins/wptextpattern/plugin.js"></script>
+		<script src="wp-includes/js/tinymce/tinymce-obsolete.js"></script>
+	</body>
+</html>

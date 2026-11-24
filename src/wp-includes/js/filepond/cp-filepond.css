@@ -1,0 +1,24 @@
+/*
+ * ClassicPres styling for FilePond
+ */
+#new-image-modal .filepond--root .filepond--drop-label {
+	min-height: 70vh;
+}
+
+#new-image-modal .filepond--root .filepond--drop-label label {
+	position: absolute;
+	top: 20px;
+	left: calc(50% - 125px);
+}
+
+#new-image-modal .filepond--drip {
+	opacity: 1;
+	background: #ecf7e9;
+	min-height: 80vh;
+}
+
+#new-image-modal #post-upload-info {
+	position: absolute;
+	bottom: 20px;
+	left: calc(50% - 100px);
+}

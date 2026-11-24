@@ -1,0 +1,3671 @@
+/**
+ * @output wp-admin/js/customize-controls.js
+ *
+ * @since CP-2.8.0
+ */
+
+/* eslint consistent-this: [ "error", "control" ] */
+/* global wp, _wpCustomizeControlsL10n, _wpCustomizeHeader, updatedControls,
+_updatedControlsWatcher, Coloris, ajaxurl, IMAGE_WIDGET, _cpCustomLogo,
+FilePondPluginFileValidateSize, FilePondPluginFileValidateType,
+FilePondPluginFileRename, FilePondPluginImagePreview, cpCropper, console,
+_wpUpdatesSettings, _wpThemeSettings, _cpFilepondLabels */
+
+document.addEventListener( 'DOMContentLoaded', function() {
+	window.newMenuItemIDs = window.newMenuItemIDs || [];
+
+	const dialog = document.getElementById( 'widget-modal' ),
+		customizerControls = [...document.getElementById( 'customize-theme-controls' ).children],
+		form = document.querySelector( 'form' ),
+		saveButton = document.getElementById( 'save' ),
+		publishSettings = document.getElementById( 'publish-settings' ),
+		publishSettingsPanel = document.getElementById( 'sub-accordion-section-publish_settings' ),
+		menuToEdit = document.getElementById( 'menu-to-edit' ),
+		availableMenuItems = document.getElementById( 'available-menu-items' ),
+		previewFrame = document.getElementById( 'customize-preview' ),
+		availableWidgets = document.getElementById( 'widgets-left' ),
+		devicesWrapper = document.querySelector( '.devices' ),
+		buttons = devicesWrapper?.querySelectorAll( 'button[data-device]' ),
+		section = document.getElementById( 'sub-accordion-section-custom_css' ),
+		colorSchemeInputs = form.querySelectorAll( 'input[name="_customize-radio-colorscheme"]' ),
+		hueControl = form.querySelector( 'li[data-setting-id="colorscheme_hue"]' ),
+		notificationsContainer = document.querySelector( '#customize-notifications-area ul' );
+
+	let addButton, pond, leftSidebar, customizeButton, orgThemes, newUrl,
+		intersectionObserver, queryString,
+		i = 1,
+		{ FilePond } = window, // import FilePond
+		cropContext = false,
+		newFrontPageIds = [],
+		newPostsPageIds = [],
+		installedThemesHTML = document.querySelector( '.themes')?.innerHTML,
+		reducedMotionMediaQuery = window.matchMedia( '(prefers-reduced-motion: reduce)' ),
+		isReducedMotion = reducedMotionMediaQuery.matches,
+		inputs = form.querySelectorAll( 'input, select, textarea' ),
+		lockableControls = form.querySelectorAll( 'input, select, textarea, button' ),
+		hyperlinks = document.querySelectorAll( 'a' ),
+		lockSettings = window._wpCustomizeSettings || {},
+		lockRefreshTimer = null,
+		queryParams = new URLSearchParams( window.location.search ),
+		addMenuButtons = document.querySelectorAll( '.add-new-menu-item' ),
+		addWidgetButtons = document.querySelectorAll( '.add-new-widget' ),
+		newMenuItemIDs = window.newMenuItemIDs,
+		hash = window.location.hash.replace( '#', '' ),
+		targetEl = document.getElementById( hash ),
+		discardingChangeset = false,
+		changesetStatus = window.wpCustomizeChangesetStatus === 'auto-draft' ? 'publish' : window.wpCustomizeChangesetStatus || 'publish',
+		autosaveTimer = null,
+		autosaveInProgress = false,
+		autosavePending = false;
+
+	// Go direct to appropriate Customizer panel if its hash is specified in the URL
+	if ( hash === 'menu-to-edit' ) {
+		hash = 'sub-accordion-panel-nav_menus';
+		window.location.hash = encodeURIComponent( hash );
+	}
+
+	if ( ! hash ) {
+		setTimeout( function() {
+			document.querySelector( '.customize-controls-close' ).focus();
+		}, 0 );
+	} else if ( hash && targetEl ) {
+		customizerControls.forEach( function( child ) {
+			child.style.display = 'none';
+		} );
+
+		targetEl.style.display = 'block';
+
+		if ( hash === 'customize-pane-parent' ) {
+			document.getElementById( 'customize-info' ).style.display = 'block';
+			setTimeout( function() {
+				document.querySelector( '.customize-controls-close' ).focus();
+			}, 0 );
+		} else {
+			document.getElementById( 'customize-info' ).style.display = 'none';
+			setTimeout( function() {
+				targetEl.querySelector( 'a' ).focus();
+			}, 0 );
+		}
+
+		if ( hash === 'sub-accordion-section-themes' ) {
+			document.getElementById( 'customize-save-button-wrapper' ).style.display = 'none';
+			document.getElementById( 'customize-footer-actions' ).style.display = 'none';
+
+			if ( window.innerWidth <= 640 ) {
+				form.querySelector( '.themes-section-installed_themes' ).classList.remove( 'selected' );
+				document.querySelector( '.theme-browser' ).classList.remove( 'local' );
+				document.querySelector( '.themes-section-installed_themes' ).setAttribute( 'aria-expanded', 'false' );
+			}
+		} else {
+			document.getElementById( 'customize-save-button-wrapper' ).style.display = 'block';
+			document.getElementById( 'customize-footer-actions' ).style.display = 'block';
+		}
+	}
+
+	/**
+	 * Show and hide panels according to hash value after initial page load
+	 */
+	window.addEventListener( 'hashchange', function( e ) {
+		var newHash = e.newURL.split( '#' )[1],
+			targetEl = document.getElementById( newHash );
+
+		if ( newHash && targetEl ) {
+			if ( newHash === 'customize-pane-parent' ) {
+				document.title = _wpCustomizeControlsL10n.customizing + ' ' + document.querySelector( '.site-title' ).textContent;
+			} else if ( newHash === 'sub-accordion-panel-widgets' ) {
+				document.title = targetEl.querySelector( '.panel-title' ).textContent.trim();
+			} else {
+				document.title = targetEl.querySelector( 'h3' ).textContent.replace( '▸', '' ).trim();
+			}
+
+			customizerControls.forEach( function( child ) {
+				child.style.display = 'none';
+			} );
+			publishSettings.setAttribute( 'aria-expanded', 'false' );
+			publishSettingsPanel.style.display = 'none';
+			document.body.classList.remove( 'outer-section-open' );
+			targetEl.style.display = 'block';
+
+			if ( newHash === 'customize-pane-parent' ) {
+				document.getElementById( 'customize-info' ).style.display = 'block';
+				document.querySelector( '.customize-controls-close' ).focus();
+			} else {
+				document.getElementById( 'customize-info' ).style.display = 'none';
+				targetEl.querySelector( 'a' ).focus();
+			}
+
+			if ( ! newHash.startsWith( 'sub-accordion-section-nav_menu[' ) ) {
+				document.body.classList.remove( 'adding-menu-items' );
+				availableMenuItems.style.display = 'none';
+				addMenuButtons.forEach( function( add ) {
+					add.setAttribute( 'aria-expanded', 'false' );
+				} );
+				if ( ! newHash.startsWith( 'sub-accordion-section-sidebar-widgets-' ) ) {
+					availableWidgets.style.display = 'none';
+				}
+			}
+
+			if ( ! newHash.startsWith( 'sub-accordion-section-sidebar-widgets-' ) ) {
+				document.body.classList.remove( 'adding-widget' );
+				availableWidgets.style.display = 'none';
+				addWidgetButtons.forEach( function( add ) {
+					add.setAttribute( 'aria-expanded', 'false' );
+				} );
+			}
+
+			if ( newHash === 'sub-accordion-section-themes' ) {
+				document.getElementById( 'customize-save-button-wrapper' ).style.display = 'none';
+				document.getElementById( 'customize-footer-actions' ).style.display = 'none';
+
+				if ( window.innerWidth <= 640 ) {
+					form.querySelector( '.themes-section-installed_themes' ).classList.remove( 'selected' );
+					document.querySelector( '.theme-browser' ).classList.remove( 'local' );
+					document.querySelector( '.themes-section-installed_themes' ).setAttribute( 'aria-expanded', 'false' );
+				}
+			} else {
+				document.getElementById( 'customize-save-button-wrapper' ).style.display = 'block';
+				document.getElementById( 'customize-footer-actions' ).style.display = 'block';
+			}
+		}
+	} );
+
+	// Delete redundant query args from browser URL
+	if ( queryParams.get( 'url' ) ) {
+		queryParams.delete( 'url' );
+		queryString = queryParams.toString(); // use updated URL
+		newUrl = window.location.pathname + ( queryString ? '?' + queryString : '' ) + ( hash ? '#' + hash : '' );
+		history.replaceState( null, '', encodeURI( newUrl ) );
+	}
+
+	if ( queryParams.get( 'discarded' ) ) {
+		queryParams.delete( 'discarded' );
+	}
+
+	if ( queryParams.get( 'theme' ) ) {
+		if ( queryParams.get( 'theme' ) === _wpCustomizeControlsL10n.activeTheme ) { // active theme
+			history.replaceState( null, '', encodeURI( window.location.pathname ) );
+		} else {
+			queryParams.delete( 'return' );
+			queryString = queryParams.toString(); // use updated URL
+			newUrl = window.location.pathname + ( queryString ? '?' + queryString : '' ) + ( hash ? '#' + hash : '' );
+			history.replaceState( null, '', encodeURI( newUrl ) );
+			saveButton.disabled = false;
+			saveButton.textContent = _wpCustomizeControlsL10n.activate;
+		}
+		setTimeout( function() {
+			document.getElementById( 'customize-pane-parent' ).querySelector( 'button' ).focus();
+		}, 0 );
+	} else {
+		queryParams.delete( 'return' );
+		queryString = queryParams.toString(); // use updated URL
+		newUrl = window.location.pathname + ( queryString ? '?' + queryString : '' ) + ( hash ? '#' + hash : '' );
+		history.replaceState( null, '', encodeURI( newUrl ) );
+	}
+
+	if ( lockSettings?.changeset.loadedFromChangesetUrl ) {
+		publishSettings.disabled = false;
+		activatePublishButton();
+	}
+
+	document.getElementById( 'customize-preview-loading' ).classList.add( 'hidden' );
+
+	// Set scheduled time for future publication
+	if ( changesetStatus === 'future' && window._wpCustomizeChangesetDate ) {
+		setSavedScheduledDate();
+	} else {
+		setScheduledDateToNow();
+	}
+
+	function preventDefaultListener( e ) {
+		e.preventDefault();
+	}
+
+	/**
+	 * Disable editing UI while another user holds the lock.
+	 *
+	 * @return {void}
+	 */
+	function disableCustomizerEditing() {
+		lockableControls.forEach( function( input ) {
+			if ( input === saveButton || input === publishSettings || input.type === 'hidden' || input.closest( '#customize-lock-notice' ) ) {
+				return;
+			}
+
+			if ( ! input.disabled ) {
+				input.disabled = true;
+				input.setAttribute( 'data-lock-disabled', 'true' );
+			}
+		} );
+
+		hyperlinks.forEach( function( link ) {
+			if ( link.classList.contains( 'button' ) && link.parentNode.className !== 'aside-lock' ) {
+				link.addEventListener( 'click', preventDefaultListener );
+			}
+		} );
+
+		saveButton.disabled = true;
+		saveButton.setAttribute( 'aria-disabled', 'true' );
+		saveButton.setAttribute( 'data-lock-disabled', 'true' );
+
+		if ( publishSettings ) {
+			publishSettings.disabled = true;
+			publishSettings.setAttribute( 'aria-disabled', 'true' );
+			publishSettings.setAttribute( 'data-lock-disabled', 'true' );
+		}
+
+		document.body.classList.add( 'customizer-locked' );
+	}
+
+	/**
+	 * Re-enable editing UI after lock takeover.
+	 *
+	 * @return {void}
+	 */
+	function enableCustomizerEditing() {
+		lockableControls.forEach( function( input ) {
+			if ( input !== saveButton && input.hasAttribute( 'data-lock-disabled' ) ) {
+				input.disabled = false;
+				input.removeAttribute( 'data-lock-disabled' );
+			}
+		} );
+
+		hyperlinks.forEach( function( link ) {
+			link.removeEventListener( 'click', preventDefaultListener );
+		} );
+
+		if ( publishSettings ) {
+			publishSettings.disabled = false;
+			publishSettings.removeAttribute( 'aria-disabled' );
+			publishSettings.removeAttribute( 'data-lock-disabled' );
+		}
+
+		document.body.classList.remove( 'customizer-locked' );
+	}
+
+	/**
+	 * Apply lock state to UI.
+	 *
+	 * @return {void}
+	 */
+	function applyLockState() {
+		const lockUser = lockSettings?.lock?.lockUser;
+		let avatarNode, takeOverButton;
+
+		if ( lockUser && lockUser.id && lockUser.id !== lockSettings?.user?.id ) {
+			if ( ! notificationsContainer.querySelector( '.customize-lock-notice' ) ) {
+				notificationsContainer.prepend( document.getElementById( 'customize-lock-notice-template' ).content.cloneNode( true ) );
+			}
+			notificationsContainer.querySelector( '.customize-lock-notice-name' ).textContent = lockUser.name || '';
+
+			avatarNode = notificationsContainer.querySelector( '.customize-lock-notice-avatar' );
+			if ( typeof lockUser.avatar === 'string' && /<img/i.test( lockUser.avatar ) ) {
+				avatarNode.setHTML( lockUser.avatar );
+				avatarNode.hidden = false;
+			} else {
+				avatarNode.replaceChildren();
+				avatarNode.hidden = true;
+			}
+
+			notificationsContainer.parentNode.style.display = 'block';
+			disableCustomizerEditing();
+
+			takeOverButton = notificationsContainer.querySelector( '.button-primary' );
+			takeOverButton.disabled = false;
+			takeOverButton.addEventListener( 'click', function( e ) {
+				e.preventDefault();
+				handleTakeOverLock();
+			} );
+
+			return;
+		}
+
+		notificationsContainer.querySelector( '.customize-lock-notice' )?.remove();
+		if ( notificationsContainer.children.length === 0 ) {
+			notificationsContainer.parentNode.style.display = 'none';
+		}
+		enableCustomizerEditing();
+	}
+
+	/**
+	 * Re-apply lock state to UI.
+	 *
+	 * @return {void}
+	 */
+	function refreshLockState() {
+		const data = new URLSearchParams();
+
+		if ( ! lockSettings?.nonce?.refreshLock ) {
+			return Promise.resolve();
+		}
+
+		data.append( 'action', 'customize_refresh_lock' );
+		data.append( 'nonce', lockSettings.nonce.refreshLock );
+		data.append( 'wp_customize', 'on' );
+
+		return fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( result.success ) {
+				lockSettings.lock = lockSettings.lock || {};
+				lockSettings.lock.lockUser = result.data.lockUser || null;
+				applyLockState();
+			} else {
+				throw new Error( result.data || 'Customizer lock refresh failed.' );
+			}
+		} )
+		.catch( function( error ) {
+			console.error( 'Customizer lock refresh failed.', error );
+		} );
+	}
+
+	/**
+	 * Take over the current changeset lock.
+	 *
+	 * @return {void}
+	 */
+	function handleTakeOverLock() {
+		const data = new URLSearchParams(),
+			takeOverButton = notificationsContainer.querySelector( '.button-primary' );
+
+		if ( ! lockSettings?.nonce?.takeOverLock ) {
+			return;
+		}
+
+		if ( takeOverButton ) {
+			takeOverButton.disabled = true;
+		}
+
+		data.append( 'action', 'customize_take_over_lock' );
+		data.append( 'nonce', lockSettings.nonce.takeOverLock );
+		data.append( 'wp_customize', 'on' );
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( result.success ) {
+				lockSettings.lock = lockSettings.lock || {};
+				lockSettings.lock.lockUser = null;
+				applyLockState();
+				return refreshLockState();
+			}
+			throw new Error( result.data || 'Lock takeover failed.' );
+		} )
+		.catch( function( error ) {
+			if ( takeOverButton ) {
+				takeOverButton.disabled = false;
+			}
+			console.error( 'Customizer lock takeover failed.', error );
+		} );
+	}
+
+	refreshLockState().then( function() {
+		lockRefreshTimer = window.setInterval( refreshLockState, 5000 );
+	} );
+
+	// Limit motion where appropriate
+	reducedMotionMediaQuery.addEventListener( 'change', function handleReducedMotionChange( event ) {
+		isReducedMotion = event.matches;
+	} );
+
+	/**
+	 * Show AYS dialog when there are unsaved widget changes.
+	 *
+	 * Note that browsers do not permit the display of a custom message.
+	 */
+	window.addEventListener( 'beforeunload', function( e ) {
+		if ( saveButton.disabled === false && ! discardingChangeset ) {
+			e.preventDefault();
+		}
+	} );
+
+	/**
+	 * Load iframe here instead of via PHP for faster page loading
+	 */
+	window.addEventListener( 'load', function() {
+		const frame = document.querySelector( '#customize-preview iframe' );
+		const src = frame && frame.getAttribute( 'data-src' );
+		if ( src ) {
+			frame.setAttribute( 'src', src );
+		}
+	} );
+
+	/**
+	 * Helper function copied from jQuery
+	 */
+	function isVisible( elem ) {
+		return !!( elem.offsetWidth || elem.offsetHeight || elem.getClientRects().length );
+	}
+
+	/**
+	 * Trigger activation of Publish button
+	 */
+	function activatePublishButton() {
+		saveButton.disabled = false;
+		saveButton.textContent = _wpCustomizeControlsL10n.publish;
+		if ( changesetStatus === 'draft' ) {
+			saveButton.textContent = _wpCustomizeControlsL10n.saveDraft;
+		} else if ( changesetStatus === 'future' ) {
+			saveButton.textContent = _wpCustomizeControlsL10n.schedule;
+		}
+		publishSettings.style.display = 'block';
+	}
+
+	/**
+	 * Schedule an autosave after a Customizer setting has changed.
+	 *
+	 * @return {void}
+	 */
+	function scheduleAutosave() {
+		window.clearTimeout( autosaveTimer );
+
+		autosaveTimer = window.setTimeout( function() {
+			autosaveChangeset();
+		}, 1000 );
+	}
+
+	/**
+	 * Mark the current changeset as changed.
+	 *
+	 * @return {void}
+	 */
+	function markChangesetDirty() {
+		activatePublishButton();
+		scheduleAutosave();
+	}
+
+	/**
+	 * Prepare changed object for publication.
+	 */
+	function inputChanged( input, settingId ) {
+		if ( settingId === 'external_header_video' && input.value.trim() ) {
+			var headerImageRemove = document.querySelector( '#customize-control-header_image .remove' );
+
+			if ( headerImageRemove ) {
+				headerImageRemove.click();
+			}
+
+			_updatedControlsWatcher.header_image = 'remove-header';
+			_updatedControlsWatcher.header_image_data = '';
+		}
+
+		_updatedControlsWatcher[ settingId ] = input.value.trim();
+		markChangesetDirty();
+	}
+
+	function backgroundPositionChanged( input ) {
+		var value = input.value.trim().split( /\s+/ ),
+			x = value[0] || 'left',
+			y = value[1] || 'top';
+
+		_updatedControlsWatcher.background_position_x = x;
+		_updatedControlsWatcher.background_position_y = y;
+		markChangesetDirty();
+	}
+
+	function backgroundCheckboxChanged( input, settingId ) {
+		if ( settingId === 'header_textcolor' ) {
+			/*
+			 * The Display Site Title and Tagline control is not a Boolean
+			 * setting. It uses header_textcolor:
+			 *
+			 * checked   = the selected/default colour, for example "000"
+			 * unchecked = "blank"
+			 */
+			_updatedControlsWatcher[ settingId ] = input.checked ? input.value : 'blank';
+			markChangesetDirty();
+			return;
+		}
+
+		if ( settingId === 'background_repeat' ) {
+			_updatedControlsWatcher.background_repeat = input.checked ? 'repeat' : 'no-repeat';
+		} else if ( settingId === 'background_attachment' ) {
+			_updatedControlsWatcher.background_attachment = input.checked ? 'scroll' : 'fixed';
+		} else {
+			_updatedControlsWatcher[ settingId ] = input.checked ? input.value : '';
+		}
+
+		markChangesetDirty();
+	}
+
+	inputs.forEach( function( input ) {
+		let settingId,
+			li = input.closest( 'li' );
+
+		if ( ! li?.hasAttribute( 'data-setting-id' ) || li.className.includes( 'widget-rendered' ) ) {
+			return;
+		}
+
+		settingId = li.dataset.settingId;
+		if ( settingId.startsWith( 'nav_menu_locations[' ) || settingId.startsWith( 'nav_menu[' ) || settingId.startsWith( 'nav_menu_item[' ) ) {
+			return;
+		}
+
+		input.addEventListener( 'input', function() {
+			if ( input.name === 'background-position' || input.type === 'checkbox' || input.classList.contains( 'create-item-input' ) ) {
+				return;
+			}
+			inputChanged( input, settingId );
+		} );
+
+		input.addEventListener( 'change', function() {
+			if ( input.classList.contains( 'create-item-input' ) ) {
+				return;
+			}
+
+			if ( input.name === 'background-position' ) {
+				backgroundPositionChanged( input );
+				return;
+			}
+
+			if ( input.type === 'checkbox' ) {
+				backgroundCheckboxChanged( input, settingId );
+				return;
+			}
+
+			inputChanged( input, settingId );
+		} );
+	} );
+
+	/**
+	 * Prevent tabbing out of dialog form.
+	 *
+	 * @since CP-2.8.0
+	 *
+	 * @param event - Event.
+	 * @return {void}
+	 */
+	function constrainTab( e ) {
+		var first = saveButton.disabled === false ? saveButton : form.querySelector( '.customize-controls-close' ),
+			last = form.querySelector( '.preview-mobile' ),
+			lastButton = [...publishSettingsPanel.querySelectorAll( 'button' )].pop(),
+			widgetSearch = document.getElementById( 'widgets-search' ),
+			lastWidget = [...document.querySelectorAll( '#available-widgets-list .widget-title' )].pop(),
+			menuSearch = document.getElementById( 'menu-items-search' ),
+			lastMenuItem = [...availableMenuItems.querySelectorAll( '.accordion-section-title' )].pop();
+
+		e.stopPropagation();
+		if ( e.shiftKey ) {
+			if ( e.target === first ) {
+				e.preventDefault();
+				last.focus();
+			} else if ( e.target.parentNode.parentNode.id === 'customize-control-changeset_status' ) {
+				e.preventDefault();
+				publishSettings.focus();
+			} else if ( e.target === publishSettings ) {
+				if ( document.body.classList.contains( 'outer-section-open' ) ) {
+					e.preventDefault();
+					lastButton.disabled === 'false' ? lastButton.focus() : document.querySelector( '#customize-control-trash_changeset .button-link-delete' ).focus();
+				}
+			} else if ( e.target === widgetSearch ) {
+				e.preventDefault();
+				for ( let i = 0, n = addWidgetButtons.length; i < n; i ++ ) {
+					if ( isVisible( addWidgetButtons[i] ) ) {
+						addWidgetButtons[i].focus();
+						return;
+					}
+				}
+			} else if ( e.target.classList?.contains( 'add-new-widget' ) ) {
+				if ( document.body.classList.contains( 'adding-widget' ) ) {
+					e.preventDefault();
+					lastWidget.focus();
+				}
+			} else if ( e.target === menuSearch ) {
+				e.preventDefault();
+				for ( let i = 0, n = addMenuButtons.length; i < n; i++ ) {
+					if ( isVisible( addMenuButtons[i] ) ) {
+						addMenuButtons[i].focus();
+						return;
+					}
+				}
+			} else if ( e.target.classList?.contains( 'add-new-menu-item' ) ) {
+				if ( document.body.classList.contains( 'adding-menu-items' ) ) {
+					e.preventDefault();
+					lastMenuItem.focus();
+				}
+			}
+		} else {
+			if ( e.target === last ) {
+				e.preventDefault();
+				first.focus();
+			} else if ( isVisible( publishSettingsPanel ) ) {
+				if ( e.target === publishSettings ) {
+					e.preventDefault();
+					document.getElementById( 'changeset-status-publish' ).focus();
+				} else if ( e.target === lastButton ) {
+					e.preventDefault();
+					publishSettings.focus();
+				} else if ( e.target.classList?.contains( 'button-link-delete' ) && lastButton.hasAttribute( 'disabled' ) ) {
+					e.preventDefault();
+					publishSettings.focus();
+				}
+			} else if ( isVisible( widgetSearch ) ) {
+				if ( e.target.classList?.contains( 'add-new-widget' ) ) {
+					e.preventDefault();
+					widgetSearch.focus();
+				} else if ( e.target === lastWidget ) {
+					e.preventDefault();
+					for ( let i = 0, n = addWidgetButtons.length; i < n; i ++ ) {
+						if ( isVisible( addWidgetButtons[i] ) ) {
+							addWidgetButtons[i].focus();
+							return;
+						}
+					}
+				}
+			} else if ( isVisible( menuSearch ) ) {
+				if ( e.target.classList?.contains( 'add-new-menu-item' ) ) {
+					e.preventDefault();
+					menuSearch.focus();
+				} else if ( e.target === lastMenuItem ) {
+					e.preventDefault();
+					for ( let i = 0, n = addMenuButtons.length; i < n; i++ ) {
+						if ( isVisible( addMenuButtons[i] ) ) {
+							addMenuButtons[i].focus();
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Keyboard navigation management
+	document.addEventListener( 'keydown', function( e ) {
+		if ( e.key === 'Escape' ) {
+			if ( isVisible( document.querySelector( '.iris-picker' ) ) ) {
+				document.querySelectorAll( '.iris-picker' ).forEach( function( iris ) {
+					iris.style.display = 'none';
+				} );
+			} else if ( isVisible( document.getElementById( 'move-widget-area' ) ) ) {
+				document.getElementById( 'move-widget-area' ).remove();
+			}
+		} else if ( e.key === 'Tab' ) {
+			if ( document.querySelector( '.devices-wrapper' ) ) {
+				constrainTab( e );
+			}
+		}
+	} );
+
+	/**
+	 * Expand and collapse the sidebar.
+	 */
+	function sidebarCollapseExpand( button ) {
+		var overlay = document.querySelector( '.wp-full-overlay' ),
+			labelEl = button.querySelector( '.collapse-sidebar-label' );
+
+		// Overlay classes.
+		overlay.classList.toggle( 'collapsed' );
+		overlay.classList.toggle( 'expanded' );
+
+		// Sidebar / preview.
+		document.body.classList.remove( 'adding-menu-items' );
+		document.body.classList.remove( 'adding-widget' );
+		availableMenuItems.style.display = 'none';
+		availableWidgets.style.display = 'none';
+		document.getElementById( 'customizer-sidebar-container' ).classList.toggle( 'collapsed' );
+		document.getElementById( 'customize-preview' ).classList.toggle( 'expanded-preview' );
+		addMenuButtons.forEach( function( add ) {
+			add.setAttribute( 'aria-expanded', 'false' );
+		} );
+		addWidgetButtons.forEach( function( add ) {
+			add.setAttribute( 'aria-expanded', 'false' );
+		} );
+
+		// Button ARIA + label text.
+		if ( button.getAttribute( 'aria-expanded' ) === 'true' ) {
+			button.setAttribute( 'aria-expanded', 'false' );
+			labelEl.textContent = 'Show Controls';
+		} else {
+			button.setAttribute( 'aria-expanded', 'true' );
+			labelEl.textContent = 'Hide Controls';
+		}
+	}
+
+	/**
+	 * Enable different device views.
+	 */
+	buttons.forEach( function( button ) {
+		button.addEventListener( 'click', function() {
+			var device = button.getAttribute( 'data-device' );
+
+			// Update button active state + aria-pressed
+			buttons.forEach(function ( btn ) {
+				var isActive = ( btn === button );
+				btn.classList.toggle( 'active', isActive );
+				btn.setAttribute( 'aria-pressed', isActive ? 'true' : 'false' );
+			} );
+
+			if ( ! previewFrame ) {
+				return;
+			}
+
+			// Use a data attribute and drive CSS from it
+			previewFrame.setAttribute( 'data-device', device );
+		} );
+	} );
+
+	/**
+	 * Themes
+	 */
+	document.querySelector( '#installed_themes-themes-filter' )?.addEventListener( 'keyup', _.debounce( function( e ) {
+		var localThemes = document.querySelectorAll( '.local .themes li' ),
+			count = localThemes.length;
+
+		e.preventDefault();
+
+		if ( e.key === 'Enter' || e.target.value.length > 2 ) { // requires at least 3 characters
+			if ( document.querySelector( '.theme-browser' ).classList.contains( 'wp-org' ) ) {
+				updateThemes( 'search', e.target.value );
+			} else {
+				localThemes.forEach( function( theme ) {
+					if ( ! theme.id.includes( e.target.value ) ) {
+						theme.style.display = 'none';
+						count--;
+					}
+				} );
+				document.querySelector( '.filter-themes-count .theme-count' ).textContent = count;
+			}
+		} else if ( document.querySelector( '.theme-browser' ).classList.contains( 'local' ) ) {
+			localThemes.forEach( function( theme ) {
+				theme.style.display = '';
+			} );
+			count = localThemes.length - 1;
+			document.querySelector( '.filter-themes-count .theme-count' ).textContent = count;
+		}
+	}, 500 ) );
+
+	// Update the list of themes from wordpress.org using Intersection Observer
+	intersectionObserver = new IntersectionObserver( function( entries ) {
+		const isIntersecting = entries[0]?.isIntersecting ?? false;
+		if ( isIntersecting ) {
+			i++;
+			updateThemes( 'browse', 'new' );
+		}
+	} );
+
+	// Search themes by tags
+	document.addEventListener( 'change', function( e ) {
+		if ( e.target.tagName === 'INPUT' && e.target.closest( 'fieldset' ) && e.target.closest( 'fieldset' ).classList.contains( 'filter-group' ) ) {
+			var tagsToSend = [];
+			document.querySelectorAll( '.filter-drawer input' ).forEach( function( tag ) {
+				if ( tag.checked ) {
+					tagsToSend.push( tag.value );
+				}
+			} );
+			updateThemes( 'tag', tagsToSend );
+		}
+	} );
+
+	// Update themes listed from wp.org
+	function updateThemes( updateType, updateValue ) {
+		var themesGrid = document.querySelector( '.themes' ),
+
+			// Create URLSearchParams object
+			params = new URLSearchParams( {
+				'action': 'query-themes',
+				'request[per_page]': 100,
+				'request[page]': i
+			} );
+
+		if ( updateType === 'browse' ) {
+			params.append( 'request[browse]', updateValue ); // popular or new
+		} else if ( updateType === 'search' ) {
+			params.append( 'request[search]', updateValue );
+		} else if ( updateType === 'tag' ) {
+			params.append( 'request[tag]', updateValue ); // array
+		}
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: params,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( i === 1 ) {
+				themesGrid.replaceChildren(); // clear the current grid
+			}
+
+			// Populate grid with new items
+			themesGrid.append( convertThemeLinksToButtons( result.data.html ) );
+			orgThemes = document.querySelectorAll( '.wp-org .themes li' );
+			orgThemes.forEach( function( theme ) {
+				theme.style.marginRight = '2%';
+				theme.style.marginBottom = '2%';
+			} );
+
+			showAndHide( document.querySelectorAll( '.themes li:not( .add-new-theme )' ) );
+
+			// Update count
+			document.querySelector( '.filter-themes-count .theme-count' ).textContent = orgThemes.length;
+			if ( orgThemes.length ) {
+				intersectionObserver.observe( orgThemes[orgThemes.length - 1] );
+			}
+		} )
+		.catch( function( error ) {
+			console.error( error );
+		} );
+	}
+
+	function convertThemeLinksToButtons( html ) {
+		const template = document.createElement( 'template' );
+
+		template.setHTML( html, {
+			sanitizer: {}
+		} );
+
+		template.content.querySelectorAll( 'a.theme-install' ).forEach( function( link ) {
+			const button = document.createElement( 'button' );
+
+			// Copy all attributes except href.
+			for ( const { name, value } of link.attributes ) {
+				if ( name !== 'href' ) {
+					button.setAttribute( name, value );
+				}
+			}
+
+			// Ensure button semantics.
+			button.type = 'button';
+
+			// Preserve contents.
+			for ( const child of link.childNodes ) {
+				button.append( child.cloneNode( true ) );
+			}
+
+			// Replace <a> with <button>.
+			link.replaceWith( button );
+		} );
+
+		return template.content.cloneNode( true );
+	}
+
+	/**
+	 * Install theme
+	 *
+	 * @since CP-2.8.0
+	 */
+	function installTheme( button, themeUrl ) {
+		const buttonText = button.textContent,
+			data = new URLSearchParams( {
+				action: 'install-theme',
+				slug: button.dataset.slug,
+				_wpnonce: _wpUpdatesSettings.ajax_nonce
+			} );
+
+		button.disabled = true;
+		button.textContent = _wpThemeSettings.l10n.installing;
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+			},
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			// Keep installation within Customizer
+			const customizeUrl = result.data?.customizeUrl || themeUrl;
+			if ( customizeUrl ) {
+				window.location = encodeURI( customizeUrl );
+				return;
+			}
+
+			// Fallback to installing within regular themes page in admin
+			const activateUrl = result.data?.activateUrl;
+			if ( activateUrl ) {
+				window.location = encodeURI( activateUrl );
+				return;
+			}
+		} )
+		.catch( function( error ) {
+			button.disabled = false;
+			button.textContent = buttonText;
+			console.error( error );
+		} );
+	}
+
+	/**
+	 * Update details within modal.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function setAddedMediaFields( item ) {
+		const id = item.dataset.id,
+			form = document.createElement( 'form' ),
+			input = document.createElement( 'input' ),
+			para = document.createElement( 'p' ),
+			message = document.createElement( 'span' ),
+			required = document.createElement( 'span' ),
+			span1 = document.createElement( 'span' ),
+			label1 = document.createElement( 'label' ),
+			input1 = document.createElement( 'input' ),
+			innerSpan1 = document.createElement( 'span' ),
+			span2 = document.createElement( 'span' ),
+			label2 = document.createElement( 'label' ),
+			input2 = document.createElement( 'input' ),
+			innerSpan2 = document.createElement( 'span' );
+
+		form.className = 'compat-item';
+		input.type = 'hidden';
+		input.id = 'menu-order';
+		input.name = 'attachments[' + id + '][menu_order]';
+		input.value = '0';
+		para.className = 'media-types media-types-required-info';
+		message.className = 'required-field-message';
+		message.textContent = 'Required fields are marked ';
+		required.className = 'required';
+		required.textContent = '*';
+
+		span1.className = 'setting';
+		span1.dataset.setting = 'media_category';
+		label1.htmlFor = 'attachments-' + id + '-media_category';
+		innerSpan1.className = 'alignleft';
+		innerSpan1.textContent = 'Media Categories';
+		input1.type = 'text';
+		input1.className = 'text';
+		input1.id = 'attachments-' + id + '-media_category';
+		input1.name = 'attachments[' + id + '][media_category]';
+		input1.value = item.dataset.taxes;
+
+		span2.className = 'setting';
+		span2.dataset.setting = 'media_post_tag';
+		label2.htmlFor = 'attachments-' + id + '-media_post_tag';
+		innerSpan2.className = 'alignleft';
+		innerSpan2.textContent = 'Media Tags';
+		input2.type = 'text';
+		input2.className = 'text';
+		input2.id = 'attachments-' + id + '-media_post_tag';
+		input2.name = 'attachments[' + id + '][media_post_tag]';
+		input2.value = item.dataset.tags;
+
+		message.append( required );
+		para.append( message );
+		label1.append( innerSpan1 );
+		span1.append( label1, input1 );
+		label2.append( innerSpan2 );
+		span2.append( label2, input2 );
+		form.append( input, para, span1, span2 );
+
+		if ( document.querySelector( '.compat-item' ) != null ) {
+			document.querySelector( '.compat-item' ).remove();
+		}
+		document.querySelector( '.attachment-compat' ).append( form );
+	}
+
+	/**
+	 * Update attachment details.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function updateDetails( input, id ) {
+		var successTimeout,
+			data = new FormData();
+
+		data.append( 'action', 'save-attachment' );
+		data.append( 'id', id );
+		data.append( 'nonce', document.getElementById( 'media-' + id ).dataset.updateNonce );
+
+		// Append metadata fields
+		if ( input.parentNode.dataset.setting === 'alt' || input.id === 'embed-image-settings-alt-text' ) {
+			data.append( 'changes[alt]', input.value );
+		} else if ( input.parentNode.dataset.setting === 'title' ) {
+			data.append( 'changes[title]', input.value );
+		} else if ( input.parentNode.dataset.setting === 'caption' || input.id === 'embed-image-settings-caption' ) {
+			data.append( 'changes[caption]', input.value );
+		} else if ( input.parentNode.dataset.setting === 'description' ) {
+			data.append( 'changes[description]', input.value );
+		}
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			var saved = dialog.querySelector( '#details-saved' );
+
+			if ( result.success ) {
+
+				// Update data attributes
+				if ( input.parentNode.dataset.setting === 'alt' ) {
+					document.getElementById( 'media-' + id ).querySelector( 'img' ).setAttribute( 'alt', input.value );
+				} else if ( input.parentNode.dataset.setting === 'title' ) {
+					document.getElementById( 'media-' + id ).setAttribute( 'aria-label', input.value );
+				} else if ( input.parentNode.dataset.setting === 'caption' ) {
+					document.getElementById( 'media-' + id ).setAttribute( 'data-caption', input.value );
+				} else if ( input.parentNode.dataset.setting === 'description' ) {
+					document.getElementById( 'media-' + id ).setAttribute( 'data-description', input.value );
+				}
+
+				// Show success visual feedback.
+				clearTimeout( successTimeout );
+				saved.classList.remove( 'hidden' );
+				saved.setAttribute( 'aria-hidden', 'false' );
+
+				// Hide success visual feedback after 3 seconds.
+				successTimeout = setTimeout( function() {
+					saved.classList.add( 'hidden' );
+					saved.setAttribute( 'aria-hidden', 'true' );
+				}, 3000 );
+			} else {
+				console.error( IMAGE_WIDGET.failed_update, result.data.error );
+			}
+		} )
+		.catch( function( error ) {
+			console.error( IMAGE_WIDGET.error, error );
+		} );
+	}
+
+	/**
+	 * Update media categories and tags.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function updateMediaTaxOrTag( input, id ) {
+		var successTimeout, newTaxes,
+			data = new FormData(),
+			taxonomy = input.getAttribute( 'name' ).replace( 'attachments[' + id + '][' , '' ).replace( ']', '' );
+
+		data.append( 'action', 'save-attachment-compat' );
+		data.append( 'nonce', document.getElementById( 'media-' + id ).dataset.updateNonce );
+		data.append( 'id', id );
+		data.append( 'taxonomy', taxonomy );
+		data.append( 'attachments[' + id + '][' + taxonomy + ']', input.value );
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( result.success ) {
+				if ( taxonomy === 'media_category' ) {
+					newTaxes = result.data.media_cats.join( ', ' );
+					input.value = newTaxes;
+					document.getElementById( 'media-' + id ).setAttribute( 'data-taxes', newTaxes );
+				} else if ( taxonomy === 'media_tag' ) {
+					newTaxes = result.data.media_tags.join( ', ' );
+					input.value = newTaxes;
+					document.getElementById( 'media-' + id ).setAttribute( 'data-tags', newTaxes );
+				}
+
+				// Show success visual feedback.
+				clearTimeout( successTimeout );
+				document.getElementById( 'tax-saved' ).classList.remove( 'hidden' );
+				document.getElementById( 'tax-saved' ).setAttribute( 'aria-hidden', 'false' );
+
+				// Hide success visual feedback after 3 seconds.
+				successTimeout = setTimeout( function() {
+					document.getElementById( 'tax-saved' ).classList.add( 'hidden' );
+					document.getElementById( 'tax-saved' ).setAttribute( 'aria-hidden', 'true' );
+				}, 3000 );
+			} else {
+				console.error( IMAGE_WIDGET.failed_update, result.data.error );
+			}
+		} )
+		.catch( function( error ) {
+			console.error( IMAGE_WIDGET.error, error );
+		} );
+	}
+
+	/**
+	 * Handles media list copy media URL button.
+	 *
+	 * Uses Clipboard API (with execCommand fallback for sites
+	 * on neither https nor localhost).
+	 *
+	 * @since CP-2.5.0
+	 *
+	 * @param {MouseEvent} event A click event.
+	 * @return {void}
+	 */
+	function copyToClipboard( context, button ) {
+		var copyAttachmentURLSuccessTimeout,
+			copyText = document.querySelector( '.preview-control-element' ).textContent.trim(),
+			input = document.createElement( 'input' );
+
+		if ( context === 'attachment' ) {
+			copyText = dialog.querySelector( '#attachment-details-copy-link' ).value;
+		}
+
+		if ( navigator.clipboard ) {
+			navigator.clipboard.writeText( copyText );
+		} else {
+			document.body.append( input );
+			input.value = copyText;
+			input.select();
+			document.execCommand( 'copy' );
+		}
+
+		// Show success visual feedback.
+		clearTimeout( copyAttachmentURLSuccessTimeout );
+		input.remove();
+
+		if ( context === 'attachment' ) {
+			button.nextElementSibling.classList.remove( 'hidden' );
+
+			// Hide success visual feedback after 3 seconds since last success and unfocus the trigger.
+			copyAttachmentURLSuccessTimeout = setTimeout( function() {
+				button.nextElementSibling.classList.add( 'hidden' );
+			}, 3000 );
+
+			// Handle success audible feedback.
+			wp.a11y.speak( wp.i18n.__( 'The file URL has been copied to your clipboard' ) );
+		} else {
+			button.textContent = document.querySelector( '.customize-copy-preview-link' ).dataset.copiedText;
+			copyAttachmentURLSuccessTimeout = setTimeout( function() {
+				button.textContent = document.querySelector( '.customize-copy-preview-link' ).dataset.copyText;
+			}, 3000 );
+
+			// Handle success audible feedback.
+			wp.a11y.speak( wp.i18n.__( 'The preview URL has been copied to your clipboard' ) );
+		}
+	}
+
+	/**
+	 * Add a page from with the Homepage Settings panel
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function createPage( button ) {
+		var frontSelect, postsSelect,
+			data = new URLSearchParams(),
+			input = button.previousElementSibling,
+			settingId = button.closest( 'li' ).dataset.settingId,
+			errorItem = button.parentElement.nextElementSibling;
+
+		if ( ! input.value.trim() ) {
+			errorItem.style.display = '';
+			input.focus();
+			return;
+		}
+
+		errorItem.style.display = 'none';
+		button.disabled = true;
+		button.textContent = button.dataset.saving;
+
+		data.append( 'action', 'customize-nav-menus-insert-auto-draft' );
+		data.append( 'wp_customize', 'on' );
+		data.append( 'customize-menus-nonce', _wpCustomizeControlsL10n.menusNonce );
+		data.append( 'params[post_type]', 'page' );
+		data.append( 'params[post_title]', button.previousElementSibling.value.trim() );
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: data
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( response ) {
+			if ( response.success ) {
+				input.value = '';
+				_updatedControlsWatcher.show_on_front = 'page';
+
+				if ( settingId === 'page_on_front' ) {
+					frontSelect = document.querySelector( 'select[data-customize-setting-link="page_on_front"]' );
+					addPageAsOption( frontSelect, response.data.post_id, response.data.title );
+					newFrontPageIds.push( { id: response.data.post_id, title: response.data.title } );
+					_updatedControlsWatcher.page_on_front = response.data.post_id;
+				} else if ( settingId === 'page_for_posts' ) {
+					postsSelect = document.querySelector( 'select[data-customize-setting-link="page_for_posts"]' );
+					addPageAsOption( postsSelect, response.data.post_id, response.data.title );
+					newPostsPageIds.push( { id: response.data.post_id, title: response.data.title } );
+					_updatedControlsWatcher.page_for_posts = response.data.post_id;
+				}
+
+				markChangesetDirty();
+			} else {
+				errorItem.textContent = response.data && response.data.message ? response.data.message : _wpCustomizeControlsL10n.pageCreationFailure;
+				errorItem.style.display = '';
+			}
+		} )
+		.catch( function() {
+			errorItem.textContent = _wpCustomizeControlsL10n.pageCreationFailure;
+			errorItem.style.display = '';
+		} )
+		.finally( function() {
+			button.disabled = false;
+			button.textContent = button.dataset.add;
+		} );
+	}
+
+	/**
+	 * Add the new page as an option to the select dropdown in the Homepage Settings panel
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function addPageAsOption( select, value, title ) {
+		let existing = select.querySelector( 'option[value="' + value + '"]' ),
+			option = document.createElement( 'option' );
+
+		if ( existing ) {
+			return;
+		}
+
+		option.value = value;
+		option.textContent = title;
+		select.prepend( option );
+		select.value = value;
+	}
+
+	/**
+	 * Select and deselect media items for adding to widget.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function selectItemToAdd( item, clicked ) {
+		var selectedItems = dialog.querySelectorAll( '.widget-modal-grid .selected' ),
+			id = item.dataset.id,
+			title = item.getAttribute( 'aria-label' ),
+			date = item.dataset.date,
+			filename = item.dataset.filename,
+			size = item.dataset.size,
+			width = item.dataset.width,
+			height = item.dataset.height,
+			caption = item.dataset.caption,
+			description = item.dataset.description,
+			url = item.dataset.url,
+			sizes = item.dataset.sizes,
+			sizeOptions = '',
+			sizesObject = sizes ? JSON.parse( sizes ) : '',
+			alt = item.querySelector( 'img' ).getAttribute( 'alt' ),
+			updateNonce = item.dataset.updateNonce,
+			deleteNonce = item.dataset.deleteNonce,
+			widgetInputs = dialog.querySelectorAll( '.widget-modal-right-sidebar input, .widget-modal-right-sidebar textarea, .widget-modal-media-embed input, .widget-modal-media-embed textarea' ),
+			widgetSelects = dialog.querySelectorAll( '.widget-modal-right-sidebar select, .widget-modal-media-embed select' );
+
+		// Update available size options in hidden field
+		for ( var dimension in sizesObject ) {
+			sizeOptions += '<option value="' + dimension + '">' + dimension[0].toUpperCase() + dimension.slice(1) + ' – ' + sizesObject[dimension].width + ' x ' + sizesObject[dimension].height + '</option>';
+		}
+
+		// Set menu_order, media_category, and media_post_tag field IDs correctly
+		setAddedMediaFields( item );
+
+		// Populate modal with attachment details
+		dialog.querySelector( '.attachment-date' ).textContent = date;
+		dialog.querySelector( '.attachment-filename' ).textContent = filename;
+		dialog.querySelector( '.attachment-filesize' ).textContent = size;
+		dialog.querySelector( '.attachment-dimensions' ).textContent = width + ' ' + IMAGE_WIDGET.by + ' ' + height + ' ' + IMAGE_WIDGET.pixels;
+		dialog.querySelector( '#edit-more' ).href = ajaxurl.replace( 'admin-ajax.php', 'post.php?post=' + id + '&action=edit' );
+		dialog.querySelector( '#attachment-details-description').textContent = description;
+		dialog.querySelector( '#attachment-details-copy-link').value = url;
+
+		if ( clicked === true ) {
+			dialog.querySelector( '#attachment-details-alt-text').textContent = alt;
+			dialog.querySelector( '#attachment-details-title').value = title;
+			dialog.querySelector( '#attachment-details-caption').textContent = caption;
+			dialog.querySelector( '.widget-modal-attachment-info img' ).src = url;
+			dialog.querySelector( '.widget-modal-attachment-info img' ).alt = alt;
+		} else {
+			dialog.querySelector( '#attachment-details-title').value = title;
+		}
+
+		// Set status of items according to user's capabilities
+		if ( updateNonce ) {
+			widgetInputs.forEach( function( input ) {
+				input.removeAttribute( 'readonly' );
+			} );
+			dialog.querySelector( '#edit-more' ).parentNode.removeAttribute( 'hidden' );
+		} else {
+			widgetInputs.forEach( function( input ) {
+				input.setAttribute( 'readonly', true );
+			} );
+			dialog.querySelector( '#edit-more' ).parentNode.setAttribute( 'hidden', true );
+		}
+
+		if ( deleteNonce ) {
+			widgetSelects.forEach( function( select ) {
+				select.removeAttribute( 'disabled' );
+			} );
+			dialog.querySelector( '.delete-attachment' ).parentNode.removeAttribute( 'hidden' );
+		} else {
+			widgetSelects.forEach( function( select ) {
+				select.setAttribute( 'disabled', true );
+			} );
+			dialog.querySelector( '.delete-attachment' ).parentNode.setAttribute( 'hidden', true );
+		}
+
+		dialog.querySelector( '#attachment-display-settings-size' ).innerHTML = sizeOptions;
+		dialog.querySelector( '.widget-modal-right-sidebar-info' ).removeAttribute( 'hidden' );
+
+		// Update media attachment details
+		dialog.querySelectorAll( '.widget-modal-right-sidebar-info input, .widget-modal-right-sidebar-info textarea' ).forEach( function( input ) {
+			input.addEventListener( 'change', function() {
+				if ( input.parentNode.parentNode.className === 'compat-item' ) {
+					updateMediaTaxOrTag( input, id ); // Update media categories and tags
+				} else {
+					updateDetails( input, id );
+				}
+			} );
+		} );
+
+		// Uncheck item if clicked on
+		if ( item.className.includes( 'selected' ) ) {
+			if ( clicked === false ) {
+				item.querySelector( '.check' ).style.display = 'block';
+				addButton.setAttribute( 'disabled', true );
+			} else {
+				item.classList.remove( 'selected' );
+				item.setAttribute( 'aria-checked', false );
+				item.querySelector( '.check' ).style.display = 'none';
+
+				// Disable add to widget button if no media items are selected
+				if ( document.querySelector( '.media-item.selected' ) == null ) {
+					addButton.setAttribute( 'disabled', true );
+					dialog.querySelector( '.widget-modal-right-sidebar-info' ).setAttribute( 'hidden', true );
+				}
+			}
+		} else {
+			// Prevent selection of multiple items
+			if ( selectedItems ) {
+				selectedItems.forEach( function( selectedItem ) {
+					selectedItem.classList.remove( 'selected' );
+					selectedItem.setAttribute( 'aria-checked', false );
+					selectedItem.querySelector( '.check' ).style.display = 'none';
+				} );
+			}
+
+			item.classList.add( 'selected' );
+			item.setAttribute( 'aria-checked', true );
+			item.querySelector( '.check' ).style.display = 'block';
+
+			// Enable add to widget button
+			addButton.removeAttribute( 'disabled' );
+		}
+	}
+
+	/**
+	 * Populate media items within grid.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function populateGridItem( attachment ) {
+		const gridItem = document.createElement( 'li' ),
+			wrapper = document.createElement( 'div' ),
+			thumbnail = document.createElement( 'div' ),
+			button = document.createElement( 'button' ),
+			spanIcon = document.createElement( 'span' ),
+			spanSRT = document.createElement( 'span' ),
+			centered = document.createElement( 'div' ),
+			filename = document.createElement( 'div' ),
+			title = document.createElement( 'div' ),
+			img = new Image();
+
+		let image;
+		if ( attachment.type === 'image' ) {
+			image = new Image();
+			image.src = attachment.url;
+			image.alt = attachment.alt;
+		} else {
+			if ( attachment.type === 'application' ) {
+				if ( attachment.subtype === 'vnd.openxmlformats-officedocument.spreadsheetml.sheet' ) {
+					img.src = _wpCustomizeControlsL10n.includes_url + 'images/media/spreadsheet.png';
+				} else if ( attachment.subtype === 'zip' ) {
+					img.src = _wpCustomizeControlsL10n.includes_url + 'images/media/archive.png';
+				} else {
+					img.src = _wpCustomizeControlsL10n.includes_url + 'images/media/document.png';
+				}
+			} else if ( attachment.type === 'audio' ) {
+				img.src = _wpCustomizeControlsL10n.includes_url + 'images/media/audio.png';
+			} else if ( attachment.type === 'video' ) {
+				img.src = _wpCustomizeControlsL10n.includes_url + 'images/media/video.png';
+			}
+
+			centered.className = 'centered';
+			img.alt = '';
+			img.setAttribute( 'draggable', 'false' );
+			centered.append( img );
+			title.textContent = attachment.title;
+			filename.append( title );
+			image = document.createElement( 'div' );
+			image.className = 'icon';
+			image.append( centered, filename );
+		}
+
+		gridItem.className = 'media-item';
+		gridItem.id = 'media-' + attachment.id;
+		gridItem.setAttribute( 'tabindex', 0 );
+		gridItem.setAttribute( 'role', 'checkbox' );
+		gridItem.setAttribute( 'aria-checked', 'false' );
+		gridItem.setAttribute( 'aria-label', attachment.title );
+		gridItem.setAttribute( 'data-id', attachment.id );
+		gridItem.setAttribute( 'data-date', attachment.dateFormatted );
+		gridItem.setAttribute( 'data-url', attachment.url );
+		gridItem.setAttribute( 'data-filename', attachment.filename );
+		gridItem.setAttribute( 'data-filetype', attachment.type );
+		gridItem.setAttribute( 'data-mime', attachment.mime );
+		gridItem.setAttribute( 'data-width', attachment.width );
+		gridItem.setAttribute( 'data-height', attachment.height );
+		gridItem.setAttribute( 'data-size', attachment.filesizeHumanReadable );
+		gridItem.setAttribute( 'data-caption', attachment.caption );
+		gridItem.setAttribute( 'data-description', attachment.description );
+		gridItem.setAttribute( 'data-link', attachment.link );
+		gridItem.setAttribute( 'data-orientation', attachment.orientation );
+		gridItem.setAttribute( 'data-menu-order', attachment.menuOrder );
+		gridItem.setAttribute( 'data-taxes', attachment.media_cats );
+		gridItem.setAttribute( 'data-tags', attachment.media_tags );
+		gridItem.setAttribute( 'data-sizes', attachment.sizes ? JSON.stringify( attachment.sizes ) : '' );
+		gridItem.setAttribute( 'data-update-nonce', attachment.nonces.update );
+		gridItem.setAttribute( 'data-delete-nonce', attachment.nonces.delete );
+		gridItem.setAttribute( 'data-edit-nonce', attachment.nonces.edit );
+
+		wrapper.className = 'select-attachment-preview type-' + attachment.type + ' subtype-' + attachment.subtype;
+		thumbnail.className = 'media-thumbnail';
+		button.type = 'button';
+		button.className = 'check';
+		button.tabIndex = -1;
+		spanIcon.className = 'media-modal-icon';
+		spanSRT.className =  'screen-reader-text';
+		spanSRT.textContent = _wpCustomizeControlsL10n.deselect;
+
+		thumbnail.append( image );
+		wrapper.append( thumbnail );
+		button.append( spanIcon, spanSRT );
+		gridItem.append( wrapper, button );
+
+		return gridItem;
+	}
+
+	/**
+	 * Populate the grid with images.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function selectMedia() {
+		var template = document.getElementById( 'tmpl-media-grid-modal' ),
+			clone = template.content.cloneNode( true ),
+			dialogButtons = clone.querySelector( '.widget-modal-header-buttons' ),
+			dialogContent = clone.querySelector( '#widget-modal-media-content' ),
+			header = dialog.querySelector( 'header' ),
+			params = new URLSearchParams( {
+				'action': 'query-attachments',
+				'query[posts_per_page]': IMAGE_WIDGET.per_page,
+				'query[post_mime_type]': customizeButton.parentNode.dataset.requiredType,
+				'query[paged]': 1
+			} );
+
+		// Make AJAX request
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: params,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( result.success ) {
+
+				// Remove left sidebar
+				leftSidebar = dialog.querySelector( '.widget-modal-left-sidebar' );
+				dialog.querySelector( '.widget-modal-left-sidebar' )?.remove();
+
+				// Append cloned template and show relevant elements
+				header.append( dialogButtons );
+				header.after( dialogContent );
+				checkWindowWidth();
+
+				addButton = dialog.querySelector( '#media-button-insert' );
+				addButton.textContent = 'Select';
+				dialog.querySelector( '#menu-item-browse' ).click();
+
+				if ( result.data.length === 0 ) {
+
+					// Reset pagination
+					dialog.querySelectorAll( '.pagination-links button' ).forEach( function( pageLink ) {
+						pageLink.setAttribute( 'data-page', 1 );
+						pageLink.setAttribute( 'disabled', true );
+						pageLink.setAttribute( 'inert', true );
+					} );
+
+					dialog.querySelector( '#current-page-selector' ).setAttribute( 'value', 1 );
+					dialog.querySelector( '.total-pages' ).textContent = 1;
+					dialog.querySelector( '.displaying-num' ).textContent = document.querySelector( '.displaying-num' ).textContent.replace( /[0-9]+/, 0 );
+
+					// Update the count at the bottom of the page
+					dialog.querySelector( '.load-more-count' ).setAttribute( 'hidden', true );
+					dialog.querySelector( '.no-media' ).removeAttribute( 'hidden' );
+
+				} else {
+
+					// Populate grid with new items
+					result.data.forEach( function( attachment ) {
+						var gridItem = populateGridItem( attachment );
+						dialog.querySelector( '.widget-modal-grid' ).append( gridItem );
+					} );
+
+					// Reset pagination
+					dialog.querySelectorAll( '.pagination-links button' ).forEach( function( pageLink ) {
+						if ( pageLink.className.includes( 'next-page' ) ) {
+							if ( result.headers.max_pages !== 1 ) {
+								pageLink.setAttribute( 'data-page', 2 );
+								pageLink.removeAttribute( 'disabled'  );
+								pageLink.removeAttribute( 'inert'  );
+							}
+						} else if ( pageLink.className.includes( 'last-page' ) ) {
+							pageLink.setAttribute( 'data-page', result.headers.max_pages );
+							if ( result.headers.max_pages !== 1 ) {
+								pageLink.removeAttribute( 'disabled'  );
+								pageLink.removeAttribute( 'inert'  );
+							}
+						}
+					} );
+
+					// Update both HTML and DOM
+					dialog.querySelector( '.total-pages' ).textContent = result.headers.max_pages;
+					dialog.querySelector( '.displaying-num' ).textContent = document.querySelector( '.displaying-num' ).textContent.replace( /[0-9]+/, result.headers.total_posts );
+
+					// Open modal to show details about file, or select files for deletion
+					dialog.querySelectorAll( '.media-item' ).forEach( function( item ) {
+						if ( item.className.includes( 'selected' ) ) {
+							selectItemToAdd( item, false );
+						}
+						item.addEventListener( 'click', function() {
+							selectItemToAdd( item, true );
+						} );
+					} );
+
+					// Update the count at the bottom of the page
+					dialog.querySelector( '.no-media' ).setAttribute( 'hidden', true );
+					dialog.querySelector( '.load-more-count' ).removeAttribute( 'hidden' );
+					dialog.querySelector( '.load-more-count' ).textContent = result.data.length + ' ' + IMAGE_WIDGET.of + ' ' + result.headers.total_posts + ' ' + IMAGE_WIDGET.media_items;
+				}
+			}
+		} )
+		.catch( function( error ) {
+			console.error( IMAGE_WIDGET.error, error );
+		} );
+		dialog.showModal();
+	}
+
+	/**
+	 * Crop an image.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function cropImage( selectedItem, attachmentId, imageUrl, nonce, cropContext ) {
+		var aspectRatio = 1,
+			width = 512,
+			height = 512;
+
+		closeModal();
+
+		if ( cropContext === 'custom_logo' && _cpCustomLogo && _cpCustomLogo.width && _cpCustomLogo.height ) {
+			width = _cpCustomLogo.width;
+			height = _cpCustomLogo.height;
+		} else if ( cropContext === 'header_image_data' ) {
+			width = _wpCustomizeHeader.data.width;
+			height = _wpCustomizeHeader.data.height;
+		}
+		aspectRatio = width / height;
+
+		cpCropper.open( {
+			attachmentId : attachmentId,
+			imageUrl     : imageUrl,
+			context      : cropContext,
+			nonce        : nonce,
+			aspectRatio  : aspectRatio,
+			minWidth     : width,
+			minHeight    : height,
+			width        : width,
+			height       : height,
+			onSelect     : function( attachment ) {
+				const imageElement = new Image();
+				imageElement.src = attachment.url;
+				addItemToCustomizer( selectedItem, attachment.id, imageElement, attachment.url, attachment );
+			}
+		} );
+	}
+
+	/**
+	 * Update the grid with new images.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function updateGrid( paged ) {
+		var dateFilter = dialog.querySelector( '#filter-by-date' ),
+			mediaCatSelect = dateFilter.nextElementSibling,
+			search = dialog.querySelector( '#widget-modal-search-input' ),
+			params = new URLSearchParams( {
+				'action': 'query-attachments',
+				'query[posts_per_page]': IMAGE_WIDGET.per_page,
+				'query[monthnum]': dateFilter.value ? parseInt( dateFilter.value.substr( 4, 2 ), 10 ) : 0,
+				'query[year]': dateFilter.value ? parseInt( dateFilter.value.substr( 0, 4 ), 10 ) : 0,
+				'query[post_mime_type]': customizeButton.parentNode.dataset.requiredType,
+				'query[s]': search.value ? search.value : '',
+				'query[paged]': paged ? paged : 1,
+				'query[media_category_name]': mediaCatSelect?.value ? mediaCatSelect.value : ''
+			} );
+
+		// Make AJAX request
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: params,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( result.success ) {
+
+				// Show relevant button and clear grid
+				addButton = dialog.querySelector( '#media-button-insert' );
+				dialog.querySelector( '.widget-modal-grid' ).replaceChildren();
+
+				if ( result.data.length === 0 ) {
+
+					// Reset pagination
+					dialog.querySelectorAll( '.pagination-links button' ).forEach( function( pageLink ) {
+						pageLink.setAttribute( 'data-page', 1 );
+						pageLink.setAttribute( 'disabled', true );
+						pageLink.setAttribute( 'inert', true );
+					} );
+
+					dialog.querySelector( '#current-page-selector' ).setAttribute( 'value', 1 );
+					dialog.querySelector( '.total-pages' ).textContent = 1;
+					dialog.querySelector( '.displaying-num' ).textContent = document.querySelector( '.displaying-num' ).textContent.replace( /[0-9]+/, 0 );
+
+					// Update the count at the bottom of the page
+					dialog.querySelector( '.load-more-count' ).setAttribute( 'hidden', true );
+					dialog.querySelector( '.no-media' ).removeAttribute( 'hidden' );
+				} else {
+
+					// Populate grid with new items
+					result.data.forEach( function( attachment ) {
+						var gridItem = populateGridItem( attachment );
+						dialog.querySelector( '.widget-modal-grid' ).append( gridItem );
+					} );
+
+					// Reset pagination
+					dialog.querySelectorAll( '.pagination-links button' ).forEach( function( pageLink ) {
+						if ( pageLink.className.includes( 'first-page' ) || pageLink.className.includes( 'prev-page' ) ) {
+							if ( paged === '1' ) {
+								pageLink.setAttribute( 'disabled', true );
+								pageLink.setAttribute( 'inert', true );
+							} else {
+								pageLink.removeAttribute( 'disabled'  );
+								pageLink.removeAttribute( 'inert'  );
+								if ( pageLink.className.includes( 'prev-page' ) ) {
+									if ( ( parseInt( paged ) - 1 ) < 1 ) {
+										pageLink.setAttribute( 'data-page', 1 );
+									} else {
+										pageLink.setAttribute( 'data-page', parseInt( paged ) - 1 );
+									}
+								}
+							}
+						} else if ( pageLink.className.includes( 'next-page' ) ) {
+							if ( result.headers.max_pages === parseInt( paged ) ) {
+								pageLink.setAttribute( 'data-page', paged );
+								pageLink.setAttribute( 'disabled', true );
+								pageLink.setAttribute( 'inert', true );
+							} else {
+								pageLink.setAttribute( 'data-page', parseInt( paged ) + 1 );
+								pageLink.removeAttribute( 'disabled'  );
+								pageLink.removeAttribute( 'inert'  );
+							}
+						} else if ( pageLink.className.includes( 'last-page' ) ) {
+							pageLink.setAttribute( 'data-page', result.headers.max_pages );
+							if ( result.headers.max_pages === parseInt( paged ) ) {
+								pageLink.setAttribute( 'disabled', true );
+								pageLink.setAttribute( 'inert', true );
+							} else {
+								pageLink.removeAttribute( 'disabled'  );
+								pageLink.removeAttribute( 'inert'  );
+							}
+						}
+					} );
+
+					// Update both HTML and DOM
+					dialog.querySelector( '#current-page-selector' ).setAttribute( 'value', paged ? paged : 1 );
+					dialog.querySelector( '#current-page-selector' ).value = paged ? paged : 1;
+					dialog.querySelector( '.total-pages' ).textContent = result.headers.max_pages;
+					dialog.querySelector( '.displaying-num' ).textContent = document.querySelector( '.displaying-num' ).textContent.replace( /[0-9]+/, result.headers.total_posts );
+
+					// Open modal to show details about file, or select files for deletion
+					if ( dialog.querySelector( '.media-item.selected' ) == null ) {
+						addButton.setAttribute( 'disabled', true );
+						dialog.querySelector( '.widget-modal-right-sidebar-info' ).setAttribute( 'hidden', true );
+					}
+					dialog.querySelectorAll( '.media-item' ).forEach( function( item ) {
+						if ( item.className.includes( 'selected' ) ) {
+							selectItemToAdd( item, false );
+							item.focus();
+						}
+						item.addEventListener( 'click', function() {
+							selectItemToAdd( item, true );
+						} );
+					} );
+
+					// Update the count at the bottom of the page
+					dialog.querySelector( '.no-media' ).setAttribute( 'hidden', true );
+					dialog.querySelector( '.load-more-count' ).removeAttribute( 'hidden' );
+					dialog.querySelector( '.load-more-count' ).textContent = result.data.length + ' ' + IMAGE_WIDGET.of + ' ' + result.headers.total_posts + ' ' + IMAGE_WIDGET.media_items;
+				}
+			}
+		} )
+		.catch( function( error ) {
+			console.error( IMAGE_WIDGET.error, error );
+		} );
+
+		dialog.showModal();
+	}
+
+	/**
+	 * Force preview refresh where necessary
+	 *
+	 * @since CP-2.8.0
+	 */
+	function forcePreviewRefresh( settingId, value ) {
+		var previewUrl,
+			previewChannel = window.getPreviewChannel();
+
+		if ( ! previewChannel ) {
+			return;
+		}
+
+		window._cpDirtySettings[ settingId ] = value;
+
+		previewUrl = new URL( previewChannel.iframe.src );
+		previewUrl.searchParams.set( 'customized', JSON.stringify( window._cpDirtySettings ) );
+		previewChannel.iframe.src = previewUrl.toString();
+	}
+
+	/**
+	 * Add image to Customizer.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function addItemToCustomizer( selectedItem, attachmentId, imageElement, imageUrl, attachment ) {
+		var headerData, headerUrl, videoElement,
+			parent = selectedItem.classList.contains( 'choice' ) ? selectedItem.closest( '.choices' ) : customizeButton.parentNode,
+			grandparent = parent.parentNode,
+			li = parent.closest( 'li' ),
+			settingId = li.dataset.settingId,
+			removeButton = document.createElement( 'button' ),
+			selectButton = document.createElement( 'button' ),
+			headerVideoControl = document.getElementById( 'customize-control-header_video' ),
+			externalVideoInput = document.getElementById( '_customize-input-external_header_video' );
+
+		if ( ! parent ) {
+			return;
+		}
+
+		attachmentId = parseInt( attachmentId );
+
+		removeButton.className = 'button remove-button';
+		removeButton.type = 'button';
+		removeButton.textContent = 'Remove';
+
+		selectButton.className = 'button select-button';
+		selectButton.type = 'button';
+		selectButton.textContent = parent.dataset.full;
+
+		// Update header image
+		if ( settingId === 'header_image_data' ) {
+
+			if ( headerVideoControl ) {
+				_updatedControlsWatcher.header_video = '';
+			}
+
+			if ( externalVideoInput ) {
+				externalVideoInput.value = '';
+				_updatedControlsWatcher.external_header_video = '';
+			}
+
+			if ( selectedItem.className === 'choice' ) {
+				li.querySelector( '.container' ).replaceChildren( imageElement.cloneNode() );
+
+				// Find the matching entry from the localized data
+				headerData = Object.values( _wpCustomizeHeader.uploads || {} ).find(
+					h => h.url === selectedItem.dataset.customizeUrl
+				);
+
+				if ( ! headerData ) {
+					headerData = Object.values( _wpCustomizeHeader.defaults || {} ).find(
+						h => h.url === selectedItem.dataset.customizeUrl
+					);
+				}
+
+				if ( ! headerData ) {
+					return;
+				}
+
+				_updatedControlsWatcher.header_image = headerData.url;
+				_updatedControlsWatcher[ settingId ] = {
+					attachment_id: headerData.attachment_id || 0,
+					url:           headerData.url,
+					thumbnail_url: headerData.thumbnail_url || headerData.url,
+					width:         headerData.width  || _wpCustomizeHeader.data.width,
+					height:        headerData.height || _wpCustomizeHeader.data.height
+				};
+
+				forcePreviewRefresh( 'header_image', headerData.url );
+				document.getElementById( 'sub-accordion-section-header_image' ).querySelector( 'a' ).focus();
+			} else {
+				parent.previousElementSibling.querySelector( '.container' ).replaceChildren( imageElement );
+				customizeButton.previousElementSibling.style.display = '';
+				customizeButton.classList.remove( 'upload-button' );
+				parent.previousElementSibling.querySelector( 'input' ).value = attachmentId;
+
+				headerUrl = attachment ? attachment.url : selectedItem.dataset.url;
+				window.sendSettingToPreview( 'header_image', headerUrl );
+
+				_updatedControlsWatcher.header_image = headerUrl;
+				_updatedControlsWatcher[ settingId ] = {
+					attachment_id: attachmentId,
+					url:           attachment ? attachment.url : imageUrl,
+					thumbnail_url: attachment ? ( attachment.sizes?.thumbnail?.url || attachment.url ) : ( selectedItem.dataset.sizes?.thumbnail?.url || imageUrl ),
+					width:         attachment ? attachment.width  : selectedItem.dataset.width,
+					height:        attachment ? attachment.height : selectedItem.dataset.height
+				};
+			}
+
+			setTimeout( function() {
+				if ( headerVideoControl && headerVideoControl.querySelector( 'video' ) ) {
+					headerVideoControl.querySelector( '.remove-button' )?.click();
+				}
+				selectButton.focus();
+			}, 0 );
+
+		// Update header video
+		} else if ( settingId === 'header_video' ) {
+			if ( ! selectedItem.dataset.url ) {
+				return;
+			}
+
+			videoElement = document.createElement( 'video' );
+			videoElement.src = selectedItem.dataset.url;
+
+			if ( li.querySelector( '.mejs-video' ) ) {
+				li.querySelector( '.mejs-offscreen' ).remove();
+				li.querySelector( '.mejs-video' ).replaceWith( videoElement );
+			} else {
+				grandparent.before( videoElement );
+				parent.prepend( removeButton );
+				customizeButton.replaceWith( selectButton );
+			}
+
+			if ( externalVideoInput ) {
+				externalVideoInput.value = '';
+				_updatedControlsWatcher.external_header_video = '';
+			}
+
+			_updatedControlsWatcher.header_image = 'remove-header';
+			_updatedControlsWatcher.header_image_data = '';
+			_updatedControlsWatcher.header_video = attachmentId;
+
+			setTimeout( function() {
+				if ( document.getElementById( 'customize-control-header_image' ).querySelector( 'img' ) ) {
+					document.getElementById( 'customize-control-header_image' ).querySelector( '.remove' ).click();
+				}
+				selectButton.focus();
+			}, 0 );
+
+		// Update external header video
+		} else if ( settingId === 'external_header_video' ) {
+			if ( ! selectedItem.dataset.url ) {
+				return;
+			}
+
+			videoElement = document.createElement( 'video' );
+			videoElement.src = selectedItem.dataset.url;
+
+			document.getElementById( 'customize-control-header_video' )?.click();
+
+			if ( headerVideoControl ) {
+				_updatedControlsWatcher.header_video = '';
+			}
+
+			_updatedControlsWatcher.header_image = 'remove-header';
+			_updatedControlsWatcher.header_image_data = '';
+			_updatedControlsWatcher.external_header_video = selectedItem.dataset.url;
+
+			setTimeout( function() {
+				if ( document.getElementById( 'customize-control-header_image' ).querySelector( 'img' ) ) {
+					document.getElementById( 'customize-control-header_image' ).querySelector( '.remove' ).click();
+				}
+				if ( document.getElementById( 'customize-control-header_video' ).querySelector( 'video' ) ) {
+					document.getElementById( 'customize-control-header_video' ).querySelector( '.remove-button' ).click();
+				}
+				selectButton.focus();
+			}, 0 );
+
+		// Update site icon
+		} else if ( settingId === 'site_icon' ) {
+			imageElement.className = 'app-icon-preview';
+			li.querySelector( '.site-icon-preview' ).removeAttribute( 'hidden' );
+			li.querySelector( '.site-icon-preview' ).append( imageElement );
+			parent.prepend( removeButton );
+			customizeButton.replaceWith( selectButton );
+			setTimeout( function() {
+				selectButton.focus();
+			} );
+			li.querySelector( 'input' ).value = attachmentId;
+			_updatedControlsWatcher[ settingId ] = attachmentId;
+
+		// Insert other images according to whether this is a new insertion or replacement
+		} else {
+			imageElement.className = 'thumbnail thumbnail-image';
+			if ( grandparent.querySelector( 'img' ) || grandparent.querySelector( 'video' ) ) {
+				grandparent.querySelector( 'img' )?.replaceWith( imageElement );
+				grandparent.querySelector( 'video' )?.replaceWith( imageElement );
+			} else {
+				grandparent.prepend( imageElement );
+				parent.prepend( removeButton );
+				customizeButton.replaceWith( selectButton );
+				setTimeout( function() {
+					selectButton.focus();
+				} );
+			}
+			if ( settingId === 'background_image' || li.classList.contains( 'customize-control-image' ) || li.classList.contains( 'customize-control-upload' ) ) {
+				if ( grandparent.querySelector( 'input' ) ) {
+					grandparent.querySelector( 'input' ).value = imageUrl;
+				}
+				_updatedControlsWatcher[ settingId ] = imageUrl;
+			} else {
+				if ( grandparent.querySelector( 'input' ) ) {
+					grandparent.querySelector( 'input' ).value = attachmentId;
+				}
+				_updatedControlsWatcher[ settingId ] = attachmentId;
+			}
+		}
+		closeModal();
+		markChangesetDirty();
+	}
+
+	/**
+	 * Enable randomizing header images for Customizer.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function setRandomHeaderChoice( choice ) {
+		const div = document.createElement( 'div' ),
+			innerDiv = document.createElement( 'div' ),
+			span = document.createElement( 'span' );
+
+		if ( ! choice ) {
+			return;
+		}
+
+		_updatedControlsWatcher.header_image = choice;
+		_updatedControlsWatcher.header_image_data = {
+			choice: choice
+		};
+
+		markChangesetDirty();
+		forcePreviewRefresh( 'header_image', choice );
+
+		if ( ! document.querySelector( '.randomizing-header' ) ) {
+			innerDiv.className = 'button display-options random random-default-header';
+			span.className = 'dashicons dashicons-randomize dice';
+			innerDiv.textContent = _wpCustomizeHeader.random;
+			innerDiv.prepend( span );
+			div.className = 'randomizing-header';
+			div.append( innerDiv );
+			document.querySelector( '#customize-control-header_image label' ).after( div );
+		}
+	}
+
+	/**
+	 * Removes media from Customizer.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function removeMedia() {
+		var button,
+			parent = customizeButton.parentNode,
+			grandparent = parent.parentNode;
+
+		if ( customizeButton.nextElementSibling.id && customizeButton.nextElementSibling.id === 'header_image-button' ) { // header image
+			parent.previousElementSibling.querySelector( 'img' )?.remove();
+			parent.previousElementSibling.querySelector( 'video' )?.remove();
+			document.querySelector( '.randomizing-header' )?.remove();
+			parent.previousElementSibling.querySelector( 'input' ).value = '';
+			customizeButton.style.display = 'none';
+			customizeButton.nextElementSibling.className = 'upload-button button new select-button';
+			setTimeout( function() {
+				customizeButton.nextElementSibling.focus();
+			} );
+			_updatedControlsWatcher.header_image = 'remove-header';
+			_updatedControlsWatcher.header_image_data = {};
+		} else {
+			button = document.createElement( 'button' );
+			button.className = 'upload-button button select-button';
+			button.type = 'button';
+			button.textContent = customizeButton.parentNode.dataset.empty;
+			if ( grandparent.querySelector( '.site-icon-preview' ) ) {
+				grandparent.querySelector( '.site-icon-preview' ).setAttribute( 'hidden', 'true' );
+				grandparent.querySelector( '.app-icon-preview' ).remove();
+				grandparent.querySelector( 'input' ).value = '';
+			} else {
+				grandparent.querySelector( 'img' )?.remove();
+				grandparent.querySelector( 'video' )?.remove();
+				grandparent.closest( 'li' ).querySelector( '.mejs-offscreen' )?.remove();
+				grandparent.closest( 'li' ).querySelector( '.mejs-video' )?.remove();
+				if ( grandparent.querySelector( 'input' ) ) {
+					grandparent.querySelector( 'input' ).value = '';
+				}
+			}
+			parent.replaceChildren( button );
+			setTimeout( function() {
+				button.focus();
+			} );
+			_updatedControlsWatcher[ parent.closest( 'li' ).dataset.settingId ] = '';
+		}
+		markChangesetDirty();
+	}
+
+	/* Enable choosing of panel on narrow screen */
+	function checkWindowWidth() {
+		var embed, details;
+		if ( dialog.querySelector( '#widget-modal-media-content' ) && window.innerWidth < 901 ) {
+			details = dialog.querySelector( 'details' );
+			details.removeAttribute( 'hidden' );
+			details.addEventListener( 'toggle', function( e ) {
+				if ( e.target.open ) {
+					embed = dialog.querySelector( '#menu-item-embed' );
+					embed.removeAttribute( 'hidden' );
+					details.append( embed );
+				}
+			} );
+		}
+	}
+
+	/**
+	 * Close modal by clicking button.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	function closeModal() {
+		dialog.close();
+		dialog.querySelector( '#media-widget-modal' ).prepend( leftSidebar );
+		dialog.querySelector( '.widget-modal-header-buttons' )?.remove();
+		dialog.querySelector( '#widget-modal-media-content' )?.remove();
+		cropContext = false;
+	}
+
+	/**
+	 * Get date and time of intended future publication os changeset
+	 */
+	function getScheduledDate() {
+		return [
+			document.getElementById( 'date-time-year' ).value,
+			String( document.getElementById( 'date-time-month' ).value ).padStart( 2, '0' ),
+			String( document.getElementById( 'date-time-day' ).value ).padStart( 2, '0' ),
+			document.getElementById( 'date-time-hour' ).value,
+			document.getElementById( 'date-time-minute' ).value,
+			document.getElementById( 'date-time-meridian' ).value
+		];
+	}
+
+	/**
+	 * Set saved scheduled time for future publication
+	 */
+	function setSavedScheduledDate() {
+		var hour24,
+			parts = window._wpCustomizeChangesetDate.match( /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/ );
+
+		if ( parts ) {
+			hour24 = parseInt( parts[4], 10 );
+			document.getElementById( 'date-time-year' ).value     = parts[1];
+			document.getElementById( 'date-time-month' ).value    = parseInt( parts[2], 10 );
+			document.getElementById( 'date-time-day' ).value      = parseInt( parts[3], 10 );
+			document.getElementById( 'date-time-hour' ).value     = hour24 % 12 || 12;
+			document.getElementById( 'date-time-minute' ).value   = parts[5];
+			document.getElementById( 'date-time-meridian' ).value = hour24 >= 12 ? 'pm' : 'am';
+			document.getElementById( 'customize-control-changeset_scheduled_date' ).style.display = 'block';
+		}
+	}
+
+	/**
+	 * Set current date and time within scheduled publication settings
+	 */
+	 function setScheduledDateToNow() {
+		var now    = new Date(),
+			hour24 = now.getHours(),
+			hour12 = hour24 % 12 || 12;
+
+		document.getElementById( 'date-time-month' ).value    = now.getMonth() + 1;
+		document.getElementById( 'date-time-day' ).value      = now.getDate();
+		document.getElementById( 'date-time-year' ).value     = now.getFullYear();
+		document.getElementById( 'date-time-hour' ).value     = hour12;
+		document.getElementById( 'date-time-minute' ).value   = String( now.getMinutes() ).padStart( 2, '0' );
+		document.getElementById( 'date-time-meridian' ).value = hour24 >= 12 ? 'pm' : 'am';
+	}
+
+	/**
+	 * Build a changeset.
+	 *
+	 * This function is used both by regular saves/publishing and autosaves.
+	 */
+	function buildChangesetData( controls, dirtySettings, menuItemIDs, frontPageIDs, postsPageIDs ) {
+		const submittedChanges = {};
+		let postsToPublish = [];
+
+		// Prepare changeset object
+		Object.keys( controls ).forEach( function( settingId ) {
+			const item = controls[ settingId ];
+
+			if ( settingId.startsWith( 'nav_menu[' ) && item === 'delete-menu' ) {
+				submittedChanges[ settingId ] = {
+					value: false // deletes menu
+				};
+			} else if ( settingId.startsWith( 'nav_menu[' ) ) {
+				submittedChanges[ settingId ] = {
+					value: {
+						name: ( typeof item === 'string' ) ? item : item.name || '',
+						description: item.description || '',
+						parent: item.parent ? parseInt( item.parent, 10 ) : 0,
+						auto_add: !! item.auto_add // default false
+					}
+				};
+			} else if ( settingId.startsWith( 'nav_menu_item[' ) ) {
+				if ( item === false ) {
+					submittedChanges[ settingId ] = {
+						value: false
+					};
+				} else {
+					submittedChanges[ settingId ] = {
+						value: {
+							nav_menu_term_id: parseInt( item.nav_menu_term_id, 10 ),
+							position: parseInt( item.position, 10 ),
+							title: item.title || '',
+							url: item.url || '',
+							original_title: item.original_title || '',
+							menu_item_parent: parseInt( item.menu_item_parent, 10 ) || 0,
+							object_id: item.object_id || 0,
+							object: item.object || '',
+							type: item.type || 'custom',
+							type_label: item.type_label || '',
+							classes: item.classes || [],
+							xfn: item.xfn || '',
+							target: item.target || '',
+							attr_title: item.attr_title || '',
+							description: item.description || '',
+							status: item.status || 'publish',
+							display_mode: item.display_mode || '',
+							roles: item.roles || ''
+						}
+					};
+				}
+			} else if ( settingId.startsWith( 'nav_menu_locations[' ) ) {
+				submittedChanges[ settingId ] = {
+					value: item || ''
+				};
+			} else { // All other settings
+				submittedChanges[ settingId ] = {
+					value: item || ''
+				};
+			}
+		} );
+
+		if ( menuItemIDs.length > 0 ) {
+			postsToPublish = postsToPublish.concat( menuItemIDs );
+		}
+
+		frontPageIDs.forEach( function( item ) {
+			postsToPublish.push( item.id );
+		} );
+
+		postsPageIDs.forEach( function( item ) {
+			postsToPublish.push( item.id );
+		} );
+
+		if ( postsToPublish.length > 0 ) {
+			submittedChanges.nav_menus_created_posts = {
+				value: postsToPublish
+			};
+		}
+
+		// Add advanced menu-item changes directly to the outgoing
+		// publish payload without touching updatedControls.
+		// This avoids crashing the live preview.
+		Object.entries( dirtySettings ).forEach( function( [ settingId, item ] ) {
+			if ( settingId.startsWith( 'nav_menu_item[' ) ) {
+				submittedChanges[ settingId ] = {
+					value: item
+				};
+			}
+		} );
+
+		return submittedChanges;
+	}
+
+	/**
+	 * Clone values for an autosave request.
+	 *
+	 * @param {*} value - Value to clone.
+	 * @return {*} Cloned value.
+	 */
+	function cloneAutosaveValue( value ) {
+		return JSON.parse( JSON.stringify( value ) );
+	}
+
+	/**
+	 * Autosave the current changeset.
+	 *
+	 * @return {void}
+	 */
+	async function autosaveChangeset() {
+		const formData = new FormData();
+		let autosaveData,
+			snapshotControls,
+			snapshotDirtySettings,
+			snapshotMenuItemIDs,
+			snapshotFrontPageIDs,
+			snapshotPostsPageIDs,
+			response,
+			result;
+
+		if ( autosaveInProgress ) {
+			autosavePending = true;
+			return;
+		}
+
+		if ( Object.keys( updatedControls ).length < 1 ) {
+			return;
+		}
+
+		autosaveInProgress = true;
+		autosavePending = false;
+
+		/*
+		 * Take snapshots before building the outgoing payload. The user may
+		 * continue editing while fetch() is in progress.
+		 */
+		snapshotControls = cloneAutosaveValue( updatedControls );
+		snapshotDirtySettings = cloneAutosaveValue( window._cpDirtySettings || {} );
+		snapshotMenuItemIDs = cloneAutosaveValue( newMenuItemIDs );
+		snapshotFrontPageIDs = cloneAutosaveValue( newFrontPageIds );
+		snapshotPostsPageIDs = cloneAutosaveValue( newPostsPageIds );
+
+		// Build the autosave data without modifying the live source objects.
+		autosaveData = buildChangesetData( snapshotControls, snapshotDirtySettings, snapshotMenuItemIDs, snapshotFrontPageIDs, snapshotPostsPageIDs );
+
+		try {
+			formData.append( 'action', 'customize_save' );
+			formData.append( 'nonce', document.getElementById( 'customizer_nonce' ).value );
+			formData.append( 'customize_theme', document.getElementById( 'theme_stylesheet' ).value );
+			formData.append( 'customize_changeset_uuid', document.getElementById( 'customize_changeset_uuid' ).value );
+			formData.append( 'customize_changeset_data', JSON.stringify( autosaveData ) );
+			formData.append( 'customize_changeset_autosave', '1' );
+
+			response = await fetch( ajaxurl, {
+				method: 'POST',
+				body: formData,
+				credentials: 'same-origin'
+			} );
+
+			if ( ! response.ok ) {
+				throw new Error( response.status );
+			}
+
+			result = await response.json();
+
+			if ( ! result.success && result.data?.code === 'changeset_already_published' && result.data?.next_changeset_uuid ) {
+				document.getElementById( 'customize_changeset_uuid' ).value = result.data.next_changeset_uuid;
+
+				/*
+				 * Retry after finally releases the in-progress flag.
+				 * Keep the live buffers intact.
+				 */
+				autosavePending = true;
+				return;
+			}
+
+			if ( ! result.success ) {
+				throw new Error( typeof result.data === 'string' ? result.data : JSON.stringify( result.data ) || 'No error details returned.' );
+			}
+
+			/*
+			 * The autosave has saved only the values represented by this
+			 * snapshot. Do not clear the live buffers here: they may now
+			 * include changes made while this request was in progress.
+			 */
+			if ( result.data?.next_changeset_uuid ) {
+				document.getElementById( 'customize_changeset_uuid' ).value = result.data.next_changeset_uuid;
+			}
+		} catch ( error ) {
+			console.error( 'Customizer autosave failed.', error );
+		} finally {
+			autosaveInProgress = false;
+
+			if ( autosavePending ) {
+				autosavePending = false;
+				scheduleAutosave();
+			}
+		}
+	}
+
+	function dismissAutosave( li ) {
+		const data = new URLSearchParams();
+
+		data.append( 'action', 'customize_dismiss_autosave_or_lock' );
+		data.append( 'nonce', lockSettings.nonce.dismissAutosaveOrLock );
+		data.append( 'wp_customize', 'on' );
+		data.append( 'dismiss_autosave', 'true' );
+		data.append( 'customize_changeset_uuid', document.getElementById( 'customize_changeset_uuid' ).value );
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json();
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( ! result.success ) {
+				console.error( 'Autosave dismissal response:', result.data );
+				throw new Error( 'Autosave dismissal failed.' );
+			}
+
+			li.remove();
+			if ( notificationsContainer.children.length === 0 ) {
+				notificationsContainer.parentNode.style.display = 'none';
+			}
+			saveButton.disabled = true;
+			saveButton.textContent = _wpCustomizeControlsL10n.publish;
+			publishSettings.style.display = 'none';
+			publishSettings.disabled = true;
+		} )
+		.catch( function( error ) {
+			console.error( 'Customizer autosave dismissal failed.', error );
+			throw error;
+		} );
+	}
+
+	/**
+	 * Publish updates by clicking Publish button.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	form.addEventListener( 'submit', async function( e ) {
+		let result, newResult, timeStr,
+			entries = Object.entries( updatedControls ),
+			navMenuChanges = {},
+			submittedChanges = {},
+			navMenuNegatives = [], // an array because we need it to be iterable
+			navMenuLocations = [],
+			navMenuItems = [],
+			formData = new FormData(),
+			updateData = new FormData(),
+			previewLink = document.getElementById( 'preview-link' ),
+			d = getScheduledDate();
+
+		// Prevent form submission via PHP
+		e.preventDefault();
+
+		// Prevent accidental form submissions
+		if ( e.submitter !== saveButton ) {
+			return;
+		}
+
+		window._customizePublishing = true;
+
+		// Prevent a pending autosave from starting during this save.
+		window.clearTimeout( autosaveTimer );
+		autosaveTimer = null;
+
+		document.body.classList.add( 'saving' );
+
+		if ( changesetStatus === 'future' ) {
+			var hours = parseInt( d[3], 10 );
+			if ( d[5] === 'pm' && hours !== 12 ) {
+				hours += 12;
+			}
+			if ( d[5] === 'am' && hours === 12 ) {
+				hours = 0;
+			}
+			timeStr = String( hours ).padStart( 2, '0' ) + ':' + d[4] + ':00';
+		}
+
+		// Clear stale notifications
+		notificationsContainer.replaceChildren();
+		notificationsContainer.parentNode.style.display = 'none';
+
+		// Populate arrays if a new menu is being added
+		for ( const [key, value] of entries ) {
+			if ( key.startsWith( 'nav_menu[-' ) ) {
+				navMenuNegatives.push( [key, value] ); // value is the menu name
+			}
+		}
+		if ( navMenuNegatives.length > 0 ) {
+			for ( const [key, value] of entries ) {
+				if ( key.startsWith( 'nav_menu_locations[' ) ) {
+					navMenuLocations.push( [key, value] );
+				} else if ( key.startsWith( 'nav_menu_item[' ) ) {
+					navMenuItems.push( [key, value] );
+				}
+			}
+		}
+
+		// Create new menus first
+		for ( const [key, object] of navMenuNegatives ) {
+			const negativeId = key.replace( 'nav_menu[', '' ).replace( ']', '' );
+			formData = new FormData(); // reset
+
+			// Build correct object for only this one menu
+			navMenuChanges = {};
+			navMenuChanges[key] = {
+				value: {
+					name: object.name,
+					auto_add: !! object.auto_add
+				}
+			};
+
+			// Append values to FormData for POSTing to back-end PHP handler
+			formData.append( 'action', 'customize_save' );
+			formData.append( 'nonce', document.getElementById( 'customizer_nonce' ).value );
+			formData.append( 'customize_theme', document.getElementById( 'theme_stylesheet' ).value );
+			formData.append( 'customize_changeset_uuid', document.getElementById( 'customize_changeset_uuid' ).value );
+			formData.append( 'customize_changeset_status', changesetStatus );
+			formData.append( 'customize_changeset_data', JSON.stringify( navMenuChanges ) );
+
+			if ( changesetStatus === 'future' ) {
+				formData.append( 'customize_changeset_date', d[0] + '-' + d[1] + '-' + d[2] + ' ' + timeStr );
+			}
+
+			try {
+				const response = await fetch( ajaxurl, {
+					method: 'POST',
+					body: formData,
+					credentials: 'same-origin'
+				} );
+
+				if ( ! response.ok ) {
+					throw new Error( response.status );
+				}
+				result = await response.json();
+			} catch ( err ) {
+				console.error( err );
+				continue;
+			}
+
+			if ( result && result.success ) {
+				const menuId = result?.data?.nav_menu_updates?.[0]?.term_id;
+				if ( menuId ) {
+
+					// Update any menu location currently populated by negativeId
+					navMenuLocations.forEach( function( locationArray ) {
+						if ( locationArray[1] === negativeId ) {
+							_updatedControlsWatcher[locationArray[0]] = menuId;
+						}
+					} );
+
+					// Update any nav_menu_items attached to this menu
+					navMenuItems.forEach( function( array ) {
+						if ( array[1].menu_id === negativeId ) {
+							_updatedControlsWatcher[array[0]].menu_id = menuId;
+						}
+					} );
+
+					// Prevent duplicate submissions
+					delete updatedControls[key];
+					formData.delete( 'customize_changeset_data' );
+					navMenuChanges = {};
+
+					// Update DOM attributes that contain negativeId
+					replaceSubstringInAttributes( negativeId, menuId );
+				}
+
+				// If the server rolled the changeset UUID, update it before next call
+				if ( result.data.next_changeset_uuid ) {
+					document.getElementById( 'customize_changeset_uuid' ).value = result.data.next_changeset_uuid;
+				}
+			}
+		}
+
+		// Prepare changeset object
+		submittedChanges = buildChangesetData( updatedControls, window._cpDirtySettings || {}, newMenuItemIDs, newFrontPageIds, newPostsPageIds );
+
+		// Append new data for POSTing to PHP back-end handler
+		updateData.append( 'action', 'customize_save' );
+		updateData.append( 'nonce', document.getElementById( 'customizer_nonce' ).value );
+		updateData.append( 'customize_theme', document.getElementById( 'theme_stylesheet' ).value );
+		updateData.append( 'customize_changeset_uuid', document.getElementById( 'customize_changeset_uuid' ).value );
+		updateData.append( 'customize_changeset_status', changesetStatus );
+		updateData.append( 'customize_changeset_data', JSON.stringify( submittedChanges ) );
+
+		if ( changesetStatus === 'future' ) {
+			updateData.append( 'customize_changeset_date', d[0] + '-' + d[1] + '-' + d[2] + ' ' + timeStr );
+		}
+
+		if ( queryParams.get( 'cp_restoring_autosave' ) === '1' ) {
+			updateData.set( 'customize_restore_autosave', '1' );
+		}
+
+		try {
+			const response = await fetch( ajaxurl, {
+				method: 'POST',
+				body: updateData,
+				credentials: 'same-origin'
+			} );
+			if ( ! response.ok ) {
+				throw new Error( response.status );
+			}
+			newResult = await response.json();
+		} catch ( err ) {
+			console.error( _wpCustomizeControlsL10n.saveBlockedError.plural + ':', err );
+			saveButton.disabled = false;
+			saveButton.textContent = _wpCustomizeControlsL10n.publish;
+			window._customizePublishing = false;
+		}
+
+		// Update HTML
+		if ( newResult && newResult.success ) {
+
+			// Prevent re-appearance of restore flag once an autosave has been restored
+			if ( queryParams.get( 'cp_restoring_autosave' ) === '1' ) {
+				queryParams.delete( 'cp_restoring_autosave' );
+				queryParams.delete( 'customize_autosaved' );
+
+				queryString = queryParams.toString(); // use updated URL
+				window.history.replaceState( null, '', window.location.pathname + '?' + queryString + window.location.hash );
+			}
+
+			// Update the in-memory date so the Schedule radio restores correctly
+			if ( changesetStatus === 'future' ) {
+				window.wpCustomizeChangesetDate = d[0] + '-' + d[1] + '-' + d[2] + ' ' + timeStr + ':00';
+			} else {
+				window.wpCustomizeChangesetDate = '';
+			}
+
+			if ( newResult.data.nav_menu_item_updates ) {
+				newResult.data.nav_menu_item_updates.forEach( function( item ) {
+					replaceSubstringInAttributes( item.previous_post_id, item.post_id );
+				} );
+			}
+
+			// Update theme heading
+			form.querySelector( '.accordion-section-title .customize-action' ).textContent = _wpCustomizeControlsL10n.active_theme;
+
+			// Reset hidden widget fields
+			form.querySelectorAll( '.multi_number' ).forEach( function( multi ) {
+				multi.value = '';
+			} );
+			form.querySelectorAll( '.add_new' ).forEach( function( add ) {
+				add.value = '';
+			} );
+
+			// Reset form
+			if ( changesetStatus === 'publish' ) {
+				saveButton.textContent = _wpCustomizeControlsL10n.published;
+				publishSettings.style.display = 'none';
+				publishSettings.setAttribute( 'aria-expanded', 'false' );
+				publishSettingsPanel.style.display = 'none';
+			} else {
+				saveButton.textContent = ( changesetStatus === 'draft' ) ? _wpCustomizeControlsL10n.draftSaved : _wpCustomizeControlsL10n.scheduled;
+				publishSettings.setAttribute( 'aria-expanded', 'true' );
+				publishSettingsPanel.style.display = 'block';
+				previewLink.removeAttribute( 'inert' );
+				previewLink.style.color = '#2271b1';
+				document.querySelector( '.customize-copy-preview-link' ).removeAttribute( 'disabled' );
+			}
+
+			// Reset the buffer object and proxy
+			Object.keys( updatedControls ).forEach( function( key ) {
+				delete updatedControls[ key ];
+			} );
+
+			// If the server rolled the changeset UUID, update it before next call
+			if ( newResult.data.next_changeset_uuid ) {
+				document.getElementById( 'customize_changeset_uuid' ).value = newResult.data.next_changeset_uuid;
+			}
+
+			// Do not reopen the published changeset when the page is refreshed.
+			if ( changesetStatus === 'publish' ) {
+				queryParams.delete( 'customize_changeset_uuid' );
+				queryParams.delete( 'customize_autosaved' );
+				queryParams.delete( 'cp_restoring_autosave' );
+
+				queryString = queryParams.toString(); // use updated URL
+				window.history.replaceState( null, '', window.location.pathname + ( queryString ? '?' + queryString : '' ) + window.location.hash );
+			}
+
+			saveButton.disabled = true;
+			window._customizePublishing = false;
+		} else if ( newResult && ! newResult.success ) {
+			if ( newResult.data && newResult.data.setting_validities ) {
+				Object.entries( newResult.data.setting_validities ).forEach( function( [settingId, validity] ) {
+					if ( validity !== true ) {
+						Object.entries( validity ).forEach( function( [code, error] ) {
+							notificationsContainer.append( buildNotification( {
+								type: 'error',
+								code: code,
+								message: error.message
+							} ) );
+						} );
+						notificationsContainer.parentNode.style.display = 'block';
+					}
+				} );
+			}
+			saveButton.disabled = false;
+			window._customizePublishing = false;
+		}
+
+		document.body.classList.remove( 'saving' );
+	} );
+
+	/**
+	 * Builds a notification system in case errors are returned from the server.
+	 */
+	function buildNotification( data ) {
+		var btn = document.createElement( 'button' ),
+			msg = document.createElement( 'div' ),
+			li = document.createElement( 'li' ),
+			span = document.createElement( 'span' );
+
+		li.className = [
+			'notice',
+			'notice-' + ( data.type || 'info' ),
+			data.alt          ? 'notice-alt'      : '',
+			data.dismissible  ? 'is-dismissible'  : '',
+			data.containerClasses || ''
+		].filter( Boolean ).join( ' ' );
+		li.dataset.code = data.code || '';
+		li.dataset.type = data.type || '';
+
+		msg.className = 'notification-message';
+		msg.setHTML( data.message || data.code || '', {
+			sanitizer: {}
+		} );
+		li.append( msg );
+
+		if ( data.dismissible ) {
+			span.className = 'screen-reader-text';
+			span.textContent = _wpCustomizeControlsL10n.dismiss;
+			btn.type = 'button';
+			btn.className = 'notice-dismiss';
+			btn.append( span );
+			btn.addEventListener( 'click', function() {
+				if ( data.onDismiss ) {
+					data.onDismiss( li );
+				} else {
+					li.remove();
+				}
+				if ( notificationsContainer.children.length === 0 ) {
+					notificationsContainer.parentNode.style.display = 'none';
+				}
+			} );
+			li.append( btn );
+		}
+
+		return li;
+	}
+
+	/**
+	 * Get the URL for restoring available autosaved changes.
+	 *
+	 * @return {string} Restoration URL.
+	 */
+	function getAutosaveRestoreUrl() {
+		const url = new URL( window.location.href ),
+			changeset = lockSettings.changeset;
+
+		if ( changeset.latestAutoDraftUuid ) {
+			url.searchParams.set( 'customize_changeset_uuid', changeset.latestAutoDraftUuid );
+			url.searchParams.delete( 'customize_autosaved' );
+		} else {
+			url.searchParams.set( 'customize_changeset_uuid', document.getElementById( 'customize_changeset_uuid' ).value );
+			url.searchParams.set( 'customize_autosaved', 'on' );
+			url.searchParams.set( 'cp_restoring_autosave', '1' );
+		}
+
+		return url.toString();
+	}
+
+	/**
+	 * Show information when a more recent autosave exists.
+	 *
+	 * @return {void}
+	 */
+	function showAutosaveNotification() {
+		const changeset = lockSettings.changeset,
+			autosaveMessage = document.createElement( 'span' );
+
+		let notice, message;
+
+		if ( changeset?.loadedFromChangesetUrl ) {
+			return;
+		}
+
+		if ( ! ( changeset?.latestAutoDraftUuid || changeset?.hasAutosaveRevision ) ) {
+			return;
+		}
+
+		if ( notificationsContainer.querySelector( '[data-code="autosave_available"]' ) ) {
+			return;
+		}
+
+		notice = buildNotification( {
+			type: 'info',
+			code: 'autosave_available',
+			message: autosaveMessage.outerHTML,
+			dismissible: true,
+			onDismiss: dismissAutosave
+		} );
+
+		message = notice.querySelector( '.notification-message' );
+		message.setHTML( _wpCustomizeControlsL10n.autosaveNotice, {
+			sanitizer: {
+				allowAttributes: ['href']
+			}
+		} );
+
+		message.querySelector( 'a' ).href = getAutosaveRestoreUrl();
+		notificationsContainer.append( notice );
+		notificationsContainer.parentNode.style.display = 'block';
+	}
+
+	showAutosaveNotification();
+
+	/**
+	 * Replaces the substring 'brand-new' in new menu attributes with negative integer.
+	 * Then replaces the negative integer with menuId on new menu publication.
+	 *
+	 * @since CP-2.8.0
+	 */
+	function replaceSubstringInAttributes( original, replacement ) {
+		let all, menu;
+		if ( original === null || original === replacement ) {
+			return;
+		}
+		all = menuToEdit.querySelectorAll( '*' );
+		if ( all.length < 1 ) { // menu already moved to new place
+			menu = document.getElementById( 'sub-accordion-section-nav_menu[' + original + ']' );
+			if ( menu ) {
+				all = menu.querySelectorAll( '*' ); // locate moved menu and its attributes
+				menu.id = 'sub-accordion-section-nav_menu[' + replacement + ']';
+			}
+		}
+
+		all.forEach( function( el ) {
+			const attrs = el.getAttributeNames();
+			attrs.forEach( function( attrName ) {
+				const value = el.getAttribute( attrName );
+				if ( value && value.includes( original ) ) {
+					const newValue = value.replaceAll( original, replacement );
+					el.setAttribute( attrName, newValue );
+				}
+			} );
+		} );
+	}
+
+	/**
+	 * Discard all changes in the current changeset
+	 */
+	function discardChangeset() {
+		var formData;
+
+		if ( ! window.confirm( _wpCustomizeControlsL10n.trashConfirm ) ) {
+			return;
+		}
+
+		formData = new FormData();
+		formData.append( 'action', 'customize_trash' );
+		formData.append( 'customize_theme', document.getElementById( 'theme_stylesheet' ).value );
+		formData.append( 'nonce', document.getElementById( 'customize-trash-nonce' ).value );
+		formData.append( 'customize_changeset_uuid', document.getElementById( 'customize_changeset_uuid' ).value );
+
+		// Suppress the beforeunload dialog before anything async happens
+		discardingChangeset = true;
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: formData,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function() {
+			const url = new URL( window.location.href );
+
+			// Clear tracked changes
+			Object.keys( updatedControls ).forEach( function( key ) {
+				delete updatedControls[ key ];
+			} );
+
+			changesetStatus = 'publish';
+			document.body.classList.remove( 'outer-section-open' );
+			publishSettings.style.display = 'none';
+			publishSettings.setAttribute( 'aria-expanded', 'false' );
+			publishSettingsPanel.style.display = 'none';
+
+			// Reload to a clean Customizer URL without the old changeset UUID
+			url.searchParams.delete( 'customize_changeset_uuid' );
+			url.searchParams.delete( 'customize_autosaved' );
+			url.searchParams.set( 'discarded', String( Date.now() ) ); // for cache-busting
+
+			discardingChangeset = true;
+			window.location.assign( url.toString() );
+		} )
+		.catch( function( err ) {
+			console.error( err );
+			discardingChangeset = false; // Re-arm beforeunload if something went wrong
+		} );
+	}
+
+	/**
+	 * Enable CodeMirror for the Additional CSS control
+	 */
+	function initCodeMirror( textarea ) {
+		var observer;
+
+		// Eliminate unnecessary white space
+		textarea.value = textarea.value.trim();
+
+		if ( textarea && wp.codeEditor ) {
+			var settingId = textarea.closest( 'li' ).dataset.settingId,
+				editor = wp.codeEditor.initialize( textarea, {
+					codemirror: {
+						mode: 'css',
+						lint: {
+							options: {
+								'known-properties': false,
+								'vendor-prefix': false,
+								'compatible-vendor-prefixes': false
+							}
+						},
+						lineNumbers: true,
+						lineWrapping: true,
+						indentUnit: 2,
+						tabSize: 2,
+						autoCloseTags: true,
+						autoCloseBrackets: true,
+						matchBrackets: true,
+						foldGutter: true,
+						gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'CodeMirror-lint-markers']
+					}
+				} );
+
+			editor.codemirror.on( 'change', function( cm ) {
+				textarea.value = cm.getValue();
+				_updatedControlsWatcher[ settingId ] = textarea.value.trim();
+				markChangesetDirty();
+			} );
+
+			observer = new MutationObserver( function( mutations ) {
+				mutations.forEach( function( mutation ) {
+					if ( mutation.attributeName === 'style' && section.style.display === 'block' ) {
+						editor.codemirror.refresh();
+					}
+				} );
+			} );
+			observer.observe( section, { attributes: true, attributeFilter: [ 'style' ] } );
+		}
+	}
+	initCodeMirror( section.querySelector( 'textarea' ) );
+
+	/**
+	 * Code for the Coloris color picker.
+	 *
+	 * @since CP-2.8.0
+	 */
+	Coloris( {
+		alpha: false,
+		format: 'hex',
+		a11y: {
+			open: 'Open color picker',
+			close: 'Close color picker',
+			clear: 'Clear the selected color',
+			marker: 'Saturation: {s}. Brightness: {v}.',
+			hueSlider: 'Hue slider',
+			alphaSlider: 'Opacity slider',
+			input: 'Color value field',
+			format: 'Color format',
+			swatch: 'Color swatch',
+			instruction: 'Saturation and brightness selector. Use up, down, left and right arrow keys to select.'
+		},
+		swatches: [
+			'#264653',
+			'#2a9d8f',
+			'#e9c46a',
+			'#f4a261',
+			'#e76f51',
+			'#d62828',
+			'#000080',
+			'#0077bb',
+			'#0096c7',
+			'#00b4d8',
+			'#0077b6'
+		],
+		clearButton: true,
+		onChange: (color, inputEl) => {
+			var effectiveColor = color || inputEl.dataset.defaultColor || '';
+
+			if ( ! color && effectiveColor ) {
+				// After clearing, restore the value then re-fire 'input' so
+				// Coloris's own updateColorPreview listener repaints the swatch
+				inputEl.value = effectiveColor;
+				inputEl.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+			}
+
+			inputEl.setAttribute( 'value', effectiveColor );
+			_updatedControlsWatcher[inputEl.closest( 'li' ).dataset.settingId] = effectiveColor;
+
+			// Enable Publish.
+			markChangesetDirty();
+		}
+	} );
+
+	// Show/hide hue slider based on colour scheme selection.
+	function updateHueVisibility() {
+		const checkedScheme = form.querySelector( 'input[name="_customize-radio-colorscheme"]:checked' );
+		if ( hueControl ) {
+			hueControl.style.display = ( checkedScheme?.value === 'custom' ) ? '' : 'none';
+		}
+	}
+
+	colorSchemeInputs.forEach( function( input ) {
+		input.addEventListener( 'change', updateHueVisibility );
+	} );
+
+	updateHueVisibility();
+
+	// Show and hide each theme's details button when hovering over and out of a theme
+	function showAndHide( themes ) {
+		themes.forEach( function( theme ) {
+			theme.addEventListener( 'mouseover', function() {
+				themes.forEach( function( other ) {
+					other.querySelector( '.more-details' ).style.opacity = '0';
+				} );
+				theme.querySelector( '.more-details' ).style.opacity = '1';
+			} );
+			theme.addEventListener( 'focusin', function() {
+				themes.forEach( function( other ) {
+					other.querySelector( '.more-details' ).style.opacity = '0';
+				} );
+				theme.querySelector( '.more-details' ).style.opacity = '1';
+			} );
+			theme.addEventListener( 'touchenter', function() {
+				themes.forEach( function( other ) {
+					other.querySelector( '.more-details' ).style.opacity = '0';
+				} );
+				theme.querySelector( '.more-details' ).style.opacity = '1';
+			} );
+			theme.addEventListener( 'mouseout', function() {
+				if ( ! theme.matches( ':has(:focus)' ) ) {
+					theme.querySelector( '.more-details' ).style.opacity = '0';
+				}
+			} );
+			theme.addEventListener( 'touchleave', function() {
+				theme.querySelector( '.more-details' ).style.opacity = '0';
+			} );
+		} );
+	}
+	showAndHide( document.querySelectorAll( '.themes li:not( .add-new-theme )' ) );
+
+	/**
+	 * Handle clicks on buttons.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	document.addEventListener( 'click', function( e ) {
+		var id, page, itemBrowse, itemUpload, gridPanel, uploadPanel,
+			modalButtons, rightSidebar, modalPages, description,
+			selectedItem, image, settingId,
+			ul = e.target.closest( 'ul' );
+
+		// Abort if this comes from a middle section heading or a widget
+		if ( ( e.target.tagName !== 'BUTTON' && e.target.closest( '.customize-section-title' ) ) || e.target.closest( '.widget-rendered' ) ) {
+			return;
+		}
+
+		// Abort for some menu-related targets
+		if ( e.target.closest( 'ul' ) ) {
+			if ( e.target.closest( 'ul' ).classList && e.target.closest( 'ul' ).classList.contains( 'menu' ) && ( ! e.target.classList.contains( 'customize-section-back' ) && ! e.target.classList.contains( 'customize-panel-back' ) ) ) {
+				return;
+			}
+		}
+
+		// Choose how to publish settings
+		if ( e.target === publishSettings ) {
+			if ( document.body.classList.contains( 'outer-section-open' ) ) {
+				document.body.classList.remove( 'outer-section-open' );
+				publishSettings.setAttribute( 'aria-expanded', 'false' );
+				publishSettingsPanel.style.display = 'none';
+			} else {
+				if ( document.body.classList.contains( 'adding-menu-items' ) ) {
+					document.body.classList.remove( 'adding-menu-items' );
+					availableMenuItems.style.display = 'none';
+					addMenuButtons.forEach( function( add ) {
+						add.setAttribute( 'aria-expanded', 'false' );
+					} );
+				} else if ( document.body.classList.contains( 'adding-widget' ) ) {
+					document.body.classList.remove( 'adding-widget' );
+					availableWidgets.style.display = 'none';
+					addWidgetButtons.forEach( function( add ) {
+						add.setAttribute( 'aria-expanded', 'false' );
+					} );
+				}
+				document.body.classList.add( 'outer-section-open' );
+				publishSettings.setAttribute( 'aria-expanded', 'true' );
+				publishSettingsPanel.style.display = 'block';
+				setTimeout( function() {
+					let focused = document.getElementById( 'changeset-status-' + changesetStatus );
+					focused.checked = true;
+					focused.focus();
+				}, 0 );
+			}
+
+		// Discard changes in changeset
+		} else if ( e.target.classList?.contains( 'button-link-delete' ) && e.target.parentNode.id === 'customize-control-trash_changeset' ) {
+			discardChangeset();
+
+		// Copy preview link
+		} else if ( e.target.classList?.contains( 'customize-copy-preview-link' ) ) {
+			copyToClipboard( 'preview', e.target );
+
+		// Add a page from within the Homepage settings panel
+		} else if ( e.target.classList?.contains( 'add-content' ) ) {
+			createPage( e.target );
+
+		// Add a widget
+		} else if ( e.target.classList?.contains( 'add-new-widget' ) ) {
+			document.body.classList.toggle( 'adding-widget' );
+			if ( e.target.getAttribute( 'aria-expanded' ) === 'false' ) {
+				if ( document.body.classList.contains( 'outer-section-open' ) ) {
+					document.body.classList.remove( 'outer-section-open' );
+					publishSettings.setAttribute( 'aria-expanded', 'false' );
+					publishSettingsPanel.style.display = 'none';
+				}
+				availableWidgets.style.display = 'block';
+				e.target.setAttribute( 'aria-expanded', true );
+				setTimeout( function() {
+					document.getElementById( 'widgets-search' ).focus();
+				}, 0 );
+			} else {
+				availableWidgets.style.display = 'none';
+				e.target.setAttribute( 'aria-expanded', false );
+			}
+
+		// Close add widgets sub-panel
+		} else if ( document.body.classList.contains( 'adding-widget' ) && e.target.classList && e.target.classList.contains( 'customize-section-back' ) ) {
+			document.body.classList.remove( 'adding-widget' );
+			document.getElementById( 'widgets-left' ).style.display = 'none';
+			for ( let i = 0, n = addWidgetButtons.length; i < n; i++ ) {
+				if ( addWidgetButtons[i].getAttribute( 'aria-expanded' ) === 'true' ) {
+					addWidgetButtons[i].setAttribute( 'aria-expanded', 'false' );
+					addWidgetButtons[i].focus();
+					return;
+				}
+			}
+
+		// Reorder widgets
+		} else if ( e.target.classList && e.target.className === 'reorder' ) {
+			ul.classList.add( 'reordering' );
+
+		// Finish reordering
+		} else if ( e.target.classList && e.target.className === 'reorder-done' ) {
+			ul.classList.remove( 'reordering' );
+
+		// Delete previous header image
+		} else if ( e.target.className === 'dashicons dashicons-no close' ) {
+			fetch( ajaxurl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: new URLSearchParams( {
+					action: 'custom-header-remove',
+					nonce: _wpCustomizeHeader.nonces.remove,
+					attachment_id: e.target.dataset.id
+				} )
+			} )
+			.then( function( response ) {
+				if ( response.ok ) {
+					return response.json(); // no errors
+				}
+				throw new Error( response.status );
+			} )
+			.then( function() {
+				let choices = e.target.closest( '.choices' );
+				e.target.parentNode.remove();
+				if ( ! choices.querySelector( '.header-image-item' ) ) {
+					choices.querySelector( '.customize-control-title' ).remove();
+				}
+			} )
+			.catch( function( error ) {
+				console.error( error );
+			} );
+
+		// Open and close description
+		} else if ( e.target.classList && e.target.classList.contains( 'customize-help-toggle' ) ) {
+			if ( e.target.closest( 'ul' ) ) {
+				description = e.target.closest( 'ul' ).querySelector( '.description' );
+			} else {
+				description = e.target.parentNode.nextElementSibling;
+			}
+			if ( e.target.parentNode.classList.contains( 'open' ) ) {
+				e.target.parentNode.classList.remove( 'open' );
+				description.style.display = 'none';
+				e.target.setAttribute( 'aria-expanded', false );
+			} else {
+				e.target.parentNode.classList.add( 'open' );
+				description.style.display = 'block';
+				e.target.setAttribute( 'aria-expanded', true );
+			}
+		} else if ( e.target.classList && e.target.classList.contains( 'section-description-close' ) ) {
+			description = e.target.closest( '.customize-section-description' );
+			description.style.display = 'none';
+			description.previousElementSibling.classList.remove( 'open' );
+			description.previousElementSibling.querySelector( '.customize-help-toggle' ).setAttribute( 'aria-expanded', false );
+
+		// Show and hide live preview on narrow screens
+		} else if ( e.target.parentNode.parentNode.id === 'customize-header-actions' ) {
+			if ( e.target.className === 'preview' ) {
+				e.target.style.display = 'none';
+				e.target.previousElementSibling.style.display = 'block';
+				if ( hash === 'sub-accordion-section-themes' ) {
+					document.querySelector( '.customize-themes-full-container' ).style.display = 'block';
+				} else {
+					previewFrame.style.zIndex = '10';
+				}
+			} else if ( e.target.className === 'controls' ) {
+				e.target.style.display = 'none';
+				e.target.nextElementSibling.style.display = 'block';
+				document.querySelector( '.customize-themes-full-container' ).style.display = 'none';
+				previewFrame.style.zIndex = '1';
+			}
+
+		// Browse installed themes
+		} else if ( e.target.classList && e.target.classList.contains( 'themes-section-installed_themes' ) ) {
+			form.querySelector( '.themes-section-wporg_themes' ).classList.remove( 'selected' );
+			e.target.classList.add( 'selected' );
+			document.querySelector( '.theme-browser' ).classList.add( 'local' );
+			document.querySelector( '.themes-section-installed_themes' ).setAttribute( 'aria-expanded', 'true' );
+			if ( window.innerWidth <= 640 ) {
+				document.querySelector( '#customize-header-actions .preview' ).style.display = 'none';
+				document.querySelector( '#customize-header-actions .controls' ).style.display = 'block';
+				document.querySelector( '.customize-themes-full-container' ).style.display = 'block';
+			}
+
+			if ( document.querySelector( '.wp-org' ) ) {
+				document.querySelector( '.themes').innerHTML = installedThemesHTML;
+				document.querySelector( '.theme-browser' ).classList.remove( 'wp-org' );
+				document.querySelector( '.themes-section-wporg_themes' ).setAttribute( 'aria-expanded', 'false' );
+				document.querySelector( '.feature-filter-toggle' ).style.display = 'none';
+				document.querySelector( '.feature-filter-toggle' ).setAttribute( 'aria-expanded', 'false' );
+				document.querySelector( '.filter-drawer' ).style.display = 'none';
+				document.querySelector( '.filter-themes-count .theme-count' ).textContent = document.querySelectorAll( '.local .themes li' ).length;
+			}
+			if ( orgThemes ) {
+				intersectionObserver.unobserve( orgThemes[orgThemes.length - 1] ); // deactivate Intersection Observer
+			}
+			showAndHide( document.querySelectorAll( '.themes li:not( .add-new-theme )' ) );
+
+		// Browse themes at wp.org
+		} else if ( e.target.classList && e.target.classList.contains( 'themes-section-wporg_themes' ) ) {
+			form.querySelector( '.themes-section-installed_themes' ).classList.remove( 'selected' );
+			e.target.classList.add( 'selected' );
+			document.querySelector( '.theme-browser' ).classList.remove( 'local' );
+			document.querySelector( '.theme-browser' ).classList.add( 'wp-org' );
+			document.querySelector( '.themes-section-installed_themes' ).setAttribute( 'aria-expanded', 'false' );
+			document.querySelector( '.themes-section-wporg_themes' ).setAttribute( 'aria-expanded', 'true' );
+			document.querySelector( '.feature-filter-toggle' ).style.display = 'inline-block';
+			if ( window.innerWidth <= 640 ) {
+				document.querySelector( '#customize-header-actions .preview' ).style.display = 'none';
+				document.querySelector( '#customize-header-actions .controls' ).style.display = 'block';
+				document.querySelector( '.customize-themes-full-container' ).style.display = 'block';
+			}
+			updateThemes( 'browse', 'new' );
+
+		// Select theme tags
+		} else if ( e.target.parentNode === document.querySelector( '.feature-filter-toggle' ) ) {
+			if ( isVisible( document.querySelector( '.filter-drawer' ) ) ) {
+				document.querySelector( '.filter-drawer' ).style.display = 'none';
+				document.querySelector( '.feature-filter-toggle' ).setAttribute( 'aria-expanded', 'false' );
+			} else {
+				document.querySelector( '.filter-drawer' ).style.display = 'block';
+				document.querySelector( '.feature-filter-toggle' ).setAttribute( 'aria-expanded', 'true' );
+			}
+
+		// Install theme
+		} else if ( e.target.classList && e.target.classList.contains( 'theme-install' ) ) {
+			installTheme( e.target, e.target.closest( 'li' ).dataset.customize );
+
+		// Collapse or expand sidebar
+		} else if ( e.target.parentNode.classList && e.target.parentNode.classList.contains( 'collapse-sidebar' ) ) {
+			e.preventDefault();
+			sidebarCollapseExpand( e.target.parentNode );
+
+		} else if ( ! dialog.querySelector( '#widget-modal-media-content' ) && e.target.tagName === 'BUTTON' ) {
+
+			// Remove media file
+			if ( e.target.classList.contains( 'remove' ) || e.target.classList.contains( 'remove-button' ) ) {
+				customizeButton = e.target;
+				removeMedia();
+
+			// Add media file
+			} else if ( e.target.classList.contains( 'select-button' ) ) {
+				customizeButton = e.target;
+				settingId = e.target.closest( 'li' ).dataset.settingId;
+				if ( e.target.parentNode.dataset.requiredType === 'image' && settingId !== 'background_image' ) {
+					cropContext = settingId;
+				}
+				selectMedia();
+			} else if ( e.target.classList.contains( 'random-default-header' ) ) {
+				setRandomHeaderChoice( e.target.dataset.customizeImageValue );
+			} else if ( e.target.classList.contains( 'choice' ) ) {
+				image = e.target.previousElementSibling;
+				addItemToCustomizer( e.target, 0, image, image.src );
+			}
+
+		// Close the modal
+		} else if ( e.target.id === 'widget-modal-close' ) {
+			closeModal();
+
+		// Set variables for the rest of the options below
+		} else if ( dialog.querySelector( '#widget-modal-media-content' ) ) {
+			itemBrowse   = dialog.querySelector( '#menu-item-browse' );
+			itemUpload   = dialog.querySelector( '#menu-item-upload' );
+			gridPanel    = dialog.querySelector( '#media-library-grid' );
+			rightSidebar = dialog.querySelector( '.widget-modal-right-sidebar' );
+			modalPages   = dialog.querySelector( '.widget-modal-pages' );
+			uploadPanel  = dialog.querySelector( '#uploader-inline' );
+			modalButtons = dialog.querySelector( '.widget-modal-header-buttons' );
+
+			// Search or go to a specific page in the media library grid
+			if ( e.target.parentNode.className === 'pagination-links' && e.target.tagName === 'BUTTON' ) {
+				page = e.target.dataset.page;
+				updateGrid( page );
+			} else if ( e.target.parentNode.parentNode && e.target.parentNode.parentNode.className === 'pagination-links' && e.target.parentNode.tagName === 'BUTTON' ) {
+				page = e.target.parentNode.dataset.page;
+				updateGrid( page );
+
+			// Search for a new image to add to a widget
+			} else if ( e.target.id === 'menu-item-add' ) {
+				dialog.querySelector( 'h2' ).textContent = IMAGE_WIDGET.media_library;
+				itemUpload.classList.remove( 'active' );
+				itemUpload.setAttribute( 'aria-selected', false );
+				itemBrowse.classList.remove( 'active' );
+				itemBrowse.setAttribute( 'aria-selected', false );
+				if ( dialog.querySelector( '.widget-modal-media-embed .thumbnail img') ) {
+					dialog.querySelector( '.widget-modal-media-embed .thumbnail img').remove();
+				}
+				modalButtons.style.display = 'flex';
+				gridPanel.removeAttribute( 'hidden' );
+				gridPanel.removeAttribute( 'inert' );
+				rightSidebar.removeAttribute( 'hidden' );
+				dialog.querySelector( '#menu-item-browse' ).click();
+
+			// Browse the library of uploaded images
+			} else if ( e.target.id === 'menu-item-browse' ) {
+				itemUpload.classList.remove( 'active' );
+				itemUpload.setAttribute( 'aria-selected', false );
+				e.target.classList.add ( 'active' );
+				e.target.setAttribute( 'aria-selected', true );
+				uploadPanel.setAttribute( 'hidden', true );
+				uploadPanel.setAttribute( 'inert', true );
+				gridPanel.removeAttribute( 'hidden' );
+				gridPanel.removeAttribute( 'inert' );
+				rightSidebar.removeAttribute( 'hidden' );
+				rightSidebar.removeAttribute( 'inert' );
+				modalPages.removeAttribute( 'hidden' );
+				modalPages.removeAttribute( 'inert' );
+
+			// Upload a new attachment
+			} else if ( e.target.id === 'menu-item-upload' ) {
+				itemBrowse.classList.remove( 'active' );
+				itemBrowse.setAttribute( 'aria-selected', false );
+				e.target.classList.add ( 'active' );
+				e.target.setAttribute( 'aria-selected', true );
+				uploadPanel.removeAttribute( 'hidden' );
+				uploadPanel.removeAttribute( 'inert' );
+				gridPanel.setAttribute( 'hidden', true );
+				gridPanel.setAttribute( 'inert', true );
+				rightSidebar.setAttribute( 'hidden', true );
+				rightSidebar.setAttribute( 'inert', true );
+				modalPages.setAttribute( 'hidden', true );
+				modalPages.setAttribute( 'inert', true );
+				goFilepond();
+
+			// Add item to Customizer control
+			} else if ( e.target.id === 'media-button-insert' ) {
+				selectedItem = dialog.querySelector( '.widget-modal-grid .selected' );
+				image = selectedItem.querySelector( 'img' );
+				if ( cropContext ) {
+					cropImage( selectedItem, selectedItem.dataset.id, image.src, selectedItem.dataset.editNonce, cropContext );
+					cropContext = false;
+				} else {
+					addItemToCustomizer( selectedItem, selectedItem.dataset.id, image, image.src );
+				}
+
+			// Copy URL
+			} else if ( e.target.className.includes( 'copy-attachment-url' ) ) {
+				copyToClipboard( 'attachment', e.target );
+
+			// Delete media item
+			} else if ( e.target.className.includes( 'delete-attachment' ) ) {
+				id = document.querySelector( '.media-item.selected' ).id;
+				if ( id && window.confirm( _wpCustomizeControlsL10n.confirm_delete ) ) {
+					deleteItem( id );
+				}
+			}
+		}
+	} );
+
+	/**
+	 * Change mode of publishing settings
+	 */
+	document.getElementById( 'customize-control-changeset_status' ).addEventListener( 'change', function( e ) {
+		let scheduled = document.getElementById( 'customize-control-changeset_scheduled_date' );
+        if ( e.target.type === 'radio' && e.target.name === 'changeset-status' ) {
+			changesetStatus = e.target.value;
+			saveButton.disabled = false;
+            saveButton.textContent = e.target.nextElementSibling.textContent;
+
+            if ( changesetStatus === 'future' ) {
+				if ( window._wpCustomizeChangesetDate ) {
+					setSavedScheduledDate();
+				} else {
+					setScheduledDateToNow(); // Refresh to current time each time Schedule is selected
+				}
+				scheduled.style.display = 'block';
+			} else {
+				scheduled.style.display = 'none';
+			}
+        }
+    } );
+
+	/**
+	 * Enable searching for items within grid.
+	 *
+	 * @abstract
+	 * @return {void}
+	 */
+	dialog.addEventListener( 'change', function( e ) {
+		// Do not run if file sought from widget
+		if ( e.target.closest( '.widget' ) ) {
+			return;
+		}
+
+		if ( e.target.id === 'filter-by-date' ) {
+			updateGrid( 1 );
+		} else if ( e.target.className === 'postform' ) {
+			updateGrid( 1 );
+		} else if ( e.target.id === 'current-page-selector' ) {
+			updateGrid( e.target.value );
+		} else if ( e.target.id === 'widget-modal-search-input' ) {
+			updateGrid( 1 );
+			dialog.querySelector( '.widget-modal-right-sidebar-info' ).setAttribute( 'hidden', true );
+		}
+	} );
+
+	// Set focus after closing modal using Escape key
+	dialog.addEventListener( 'keydown', function( e ) {
+		var widgetId, widget, details, base,
+			modal = dialog.querySelector( '#media-widget-modal' ),
+			method = 'select';
+
+		if ( modal ) {
+			if ( dialog.querySelector( '#image-modal-content' ) ) {
+				method = 'edit';
+				widgetId = dialog.querySelector( '#image-modal-content' ).dataset.widgetId;
+			} else {
+				widgetId = dialog.querySelector( '#widget-modal-media-content' ).dataset.widgetId;
+			}
+
+			if ( widgetId ) {
+				widget  = document.getElementById( widgetId );
+				details = widget.querySelector( 'details' );
+				base    = widget.querySelector( '.id_base' );
+
+				if ( base && base.value === 'media_image' ) {
+					if ( dialog.open && e.key === 'Escape' ) {
+						closeModal();
+						setTimeout( function() {
+							details.open = true;
+						}, 100 );
+						details.addEventListener( 'toggle', function( e ) {
+							if ( e.target.open ) {
+								if ( method === 'edit' ) {
+									widget.querySelector( '.edit-media' ).focus();
+								} else {
+									widget.querySelector( '.select-media' ).focus();
+								}
+							}
+						} );
+					}
+				}
+			}
+		}
+	} );
+
+	/**
+	 * Upload files using FilePond
+	 */
+	function goFilepond() {
+
+		// Register FilePond plugins
+		FilePond.registerPlugin(
+			FilePondPluginFileValidateSize,
+			FilePondPluginFileValidateType,
+			FilePondPluginFileRename,
+			FilePondPluginImagePreview
+		);
+
+		// Create a FilePond instance
+		pond = FilePond.create( dialog.querySelector( '#filepond' ), {
+			allowMultiple: true,
+			server: {
+				process: function( fieldName, file, metadata, load, error, progress, abort ) {
+
+					// Create FormData
+					var formData = new FormData();
+					formData.append( 'async-upload', file, file.name );
+					formData.append( 'action', 'upload-attachment' );
+					formData.append( '_wpnonce', IMAGE_WIDGET.media_nonce );
+
+					// Use Fetch to upload the file
+					fetch( ajaxurl, {
+						method: 'POST',
+						body: formData,
+						credentials: 'same-origin'
+					} )
+					.then( function( response ) {
+						if ( response.ok ) {
+							return response.json(); // no errors
+						}
+						throw new Error( response.status );
+					} )
+					.then( function( result ) {
+						var gridItem;
+						if ( result.success ) {
+							load( result.data );
+							gridItem = populateGridItem( result.data );
+							document.querySelector( '#media-library-grid ul' ).prepend( gridItem );
+						} else {
+							error( IMAGE_WIDGET.upload_failed );
+						}
+					} )
+					.catch( function( err ) {
+						error( IMAGE_WIDGET.upload_failed );
+						console.error( IMAGE_WIDGET.error, err );
+					} );
+
+					// Return an abort function
+					return {
+						abort: function() {
+							// This function is called when the user aborts the upload
+							abort();
+						}
+					};
+				},
+				maxFileSize: dialog.querySelector( '#ajax-url' ).dataset.maxFileSize
+			},
+			onprocessfile: ( error, file ) => { // Called when an individual file upload completes
+				if ( ! error ) {
+					setTimeout( function() {
+						pond.removeFile( file.id );
+					}, 100 );
+					resetDataOrdering( 'plus' );
+				}
+			},
+			onprocessfiles: () => { // Called when all files in the queue have finished uploading
+				updateGrid( 1 );
+				dialog.querySelector( '#menu-item-browse' ).click();
+				setTimeout( function() {
+					dialog.querySelector( '.widget-modal-right-sidebar-info' ).setAttribute( 'hidden', true );
+				}, 500 );
+			},
+			labelTapToUndo: IMAGE_WIDGET.tap_close,
+			fileRenameFunction: ( file ) =>
+				new Promise( function( resolve ) {
+					if ( parseInt( _cpFilepondLabels.renameFiles ) === 1 ) {
+						const newName = window.prompt(
+							_wpCustomizeControlsL10n.new_filename,
+							file.name
+						);
+						resolve( newName === null ? file.name : newName );
+					} else {
+						resolve( file.name );
+					}
+				}
+			),
+			acceptedFileTypes: document.querySelector( '.uploader-inline' ).dataset.allowedMimes.split( ',' ),
+			labelFileTypeNotAllowed: IMAGE_WIDGET.invalid_type,
+			fileValidateTypeLabelExpectedTypes: IMAGE_WIDGET.check_types
+		} );
+	}
+
+	// Delete attachment from within modal
+	function deleteItem( id ) {
+		var mediaItem = document.getElementById( id );
+		if ( ! mediaItem ) {
+			return;
+		}
+		var data = new URLSearchParams( {
+			action: 'delete-post',
+			_ajax_nonce: mediaItem.dataset.deleteNonce,
+			id: id.replace( 'media-', '' )
+		} );
+
+		fetch( ajaxurl, {
+			method: 'POST',
+			body: data,
+			credentials: 'same-origin'
+		} )
+		.then( function( response ) {
+			if ( response.ok ) {
+				return response.json(); // no errors
+			}
+			throw new Error( response.status );
+		} )
+		.then( function( result ) {
+			if ( result === 1 ) { // success
+				if ( mediaItem.previousElementSibling != null ) {
+					document.getElementById( mediaItem.previousElementSibling.id ).focus();
+				} else if ( mediaItem.nextElementSibling != null ) {
+					document.getElementById( mediaItem.nextElementSibling.id ).focus();
+				} else {
+					closeModal();
+				}
+				mediaItem.remove();
+				document.querySelector( '.widget-modal-right-sidebar-info' ).setAttribute( 'hidden', true );
+				resetDataOrdering( 'minus' );
+			} else {
+				console.log( _wpCustomizeControlsL10n.delete_failed );
+			}
+		} )
+		.catch( function( error ) {
+			console.error( _wpCustomizeControlsL10n.error, error );
+		} );
+	}
+
+	// Reset ordering of media items
+	function resetDataOrdering( sign ) {
+		var items = document.querySelectorAll( '.media-item' ),
+			num = document.querySelector( '.displaying-num' ).textContent.split( ' ' ),
+			count = document.querySelector( '.load-more-count' ).textContent.split( ' ' ),
+			count2 = sign === 'minus' ? parseInt( count[2], 10 ) - 1 : parseInt( count[2], 10 ) + 1,
+			count5 = '';
+
+		items.forEach( function( item, index ) {
+			item.setAttribute( 'data-order', parseInt( index + 1 ) );
+		} );
+
+		// Reset totals
+		if ( count[5] ) { // allow for different languages
+			count5 = ' ' + count[5];
+		}
+		document.querySelector( '.load-more-count' ).textContent = items.length + ' ' + count[1] + ' ' + count2 + ' ' + count[4] + count5;
+		document.querySelector( '.displaying-num' ).textContent = items.length + ' ' + num[1];
+	}
+} );

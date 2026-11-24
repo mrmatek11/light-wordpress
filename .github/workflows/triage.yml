@@ -1,0 +1,22 @@
+name: Add Triage Label
+
+on:
+  issues:
+    types: opened
+
+# Disable permissions for all available scopes by default.
+# Required permissions are configured at the job level.
+permissions: {}
+
+jobs:
+  add_label:
+    name: Triage label
+    permissions:
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions-ecosystem/action-add-labels@v1
+        if: github.event.issue.labels[0] == null
+        with:
+          labels: 'status: needs triage'

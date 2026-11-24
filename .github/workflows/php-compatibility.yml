@@ -1,0 +1,73 @@
+name: PHP Compatibility
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+  workflow_dispatch:
+
+# Disable permissions for all available scopes by default.
+# Required permissions are configured at the job level.
+permissions: {}
+
+jobs:
+
+  # Runs PHP compatibility testing.
+  #
+  # Violations are reported inline with annotations.
+  #
+  # Performs the following steps:
+  # - Checks out the repository.
+  # - Sets up PHP.
+  # - Installs Composer dependencies (use cache if possible).
+  # - Make Composer packages available globally.
+  # - Logs debug information.
+  # - Logs PHP_CodeSniffer debug information.
+  # - Runs the PHP compatibility tests.
+  php-comatibility:
+    name: Check PHP compatibility
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'ClassicPress/ClassicPress' || github.event_name == 'pull_request' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer, cs2pr
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v4
+        with:
+          composer-options: "--no-progress --no-ansi --no-interaction"
+
+      - name: Make Composer packages available globally
+        run: echo "${PWD}/vendor/bin" >> $GITHUB_PATH
+
+      - name: Show debug information
+        run: |
+          set +e
+          set -x
+          npm --version
+          node --version
+          curl --version
+          git --version
+          svn --version
+          php --version
+          phpunit --version
+          composer --version
+          npm run grunt -- --version
+          mysql --version
+
+      - name: Log PHPCS debug information
+        run: phpcs -i
+
+      - name: Run PHP compatibility tests
+        run: phpcs --standard=phpcompat.xml.dist -q --report=checkstyle | cs2pr
