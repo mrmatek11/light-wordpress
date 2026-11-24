@@ -1,14 +1,14 @@
-> Fork of [ClassicPress](https://github.com/ClassicPress/ClassicPress) at 9e36410. Modern white-label admin lives in `src/wp-content/mu-plugins/interpaste*` (CSS + hooks, no core edits). Update core by re-copying upstream.
+> Fork of [ClassicPress](https://github.com/ClassicPress/ClassicPress) at 9e36410. Modern white-label admin lives in `src/wp-content/mu-plugins/cms*` (CSS + hooks, no core edits). Update core by re-copying upstream.
 
-## Interpaste
+## Admin UI
 
-- Admin UI: `src/wp-content/mu-plugins/interpaste.php` + `interpaste/` (no core edits).
+- Admin UI: `src/wp-content/mu-plugins/cms.php` + `cms/` (no core edits).
 - Languages: Polish (default on install) and English. Users switch in *Profile → Language* or on the login screen. Packs: `src/wp-content/languages/` (WordPress 6.2 `pl_PL`).
 - Clean URLs: `/admin`, `/login`, `/content`, `/includes`, `/api` instead of `wp-*`. Direct `wp-admin` / `wp-login.php` requests return 404.
   Enable in `wp-config.php` **after** the server rewrites are in place:
 
   ```php
-  define( 'IP_HIDE_PATHS', true );
+  define( 'CMS_HIDE_PATHS', true );
   ```
 
   Apache: rules are added to `.htaccess` automatically (Settings → Permalinks → Save).
@@ -23,7 +23,7 @@
   rewrite ^/includes/(.*)$ /wp-includes/$1 last;
   ```
 
-  Local dev: `php -S 127.0.0.1:8080 -t src tools/interpaste-router.php`
+  Local dev: `php -S 127.0.0.1:8080 -t src tools/dev-router.php`
 
 <a href="https://www.classicpress.net"><img src="src/wp-admin/images/classicpress-logo.png" height="63"></a>
 

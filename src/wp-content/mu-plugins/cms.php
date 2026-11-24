@@ -1,58 +1,57 @@
 <?php
 /**
- * Plugin Name: Interpaste Admin
+ * Plugin Name: Admin UI
  */
 
 defined( 'ABSPATH' ) || exit;
 
-const IP_BRAND = 'Interpaste';
-const IP_PATHS = array(
+const CMS_PATHS = array(
 	'wp-admin'     => 'admin',
 	'wp-login.php' => 'login',
 	'wp-content'   => 'content',
 	'wp-includes'  => 'includes',
 );
 
-function ip_hide_paths( $s ) {
+function cms_hide_paths( $s ) {
 	if ( ! is_string( $s ) ) {
 		return $s;
 	}
 	return preg_replace_callback(
 		'#(\\\\?/)(wp-admin|wp-content|wp-includes|wp-login\.php)(?![\w.-])#',
 		function ( $m ) {
-			return $m[1] . IP_PATHS[ $m[2] ];
+			return $m[1] . CMS_PATHS[ $m[2] ];
 		},
 		$s
 	);
 }
 
-if ( defined( 'IP_HIDE_PATHS' ) && IP_HIDE_PATHS ) {
-	$ip_base = wp_parse_url( get_option( 'siteurl' ), PHP_URL_PATH );
-	$ip_base = rtrim( (string) $ip_base, '/' ) . '/';
-	defined( 'ADMIN_COOKIE_PATH' ) || define( 'ADMIN_COOKIE_PATH', $ip_base );
-	defined( 'PLUGINS_COOKIE_PATH' ) || define( 'PLUGINS_COOKIE_PATH', $ip_base );
+if ( defined( 'CMS_HIDE_PATHS' ) && CMS_HIDE_PATHS ) {
+	$cms_base = wp_parse_url( get_option( 'siteurl' ), PHP_URL_PATH );
+	$cms_base = rtrim( (string) $cms_base, '/' ) . '/';
+	defined( 'ADMIN_COOKIE_PATH' ) || define( 'ADMIN_COOKIE_PATH', $cms_base );
+	defined( 'PLUGINS_COOKIE_PATH' ) || define( 'PLUGINS_COOKIE_PATH', $cms_base );
 
-	$ip_path = (string) wp_parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH );
-	if ( preg_match( '#/(wp-admin|wp-login\.php)(/|$)#', $ip_path ) && ! preg_match( '#/wp-admin/(admin-ajax|admin-post)\.php$#', $ip_path ) ) {
+	$cms_path = (string) wp_parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH );
+	if ( preg_match( '#/(wp-admin|wp-login\.php)(/|$)#', $cms_path ) && ! preg_match( '#/wp-admin/(admin-ajax|admin-post)\.php$#', $cms_path ) ) {
 		status_header( 404 );
 		nocache_headers();
 		exit;
 	}
 	$_SERVER['REQUEST_URI'] = preg_replace(
-		array( '#^' . preg_quote( $ip_base, '#' ) . 'admin(/|$)#', '#^' . preg_quote( $ip_base, '#' ) . 'login/?(?=\?|$)#' ),
-		array( $ip_base . 'wp-admin$1', $ip_base . 'wp-login.php' ),
+		array( '#^' . preg_quote( $cms_base, '#' ) . 'admin(/|$)#', '#^' . preg_quote( $cms_base, '#' ) . 'login/?(?=\?|$)#' ),
+		array( $cms_base . 'wp-admin$1', $cms_base . 'wp-login.php' ),
 		$_SERVER['REQUEST_URI'],
 		1
 	);
 
-	foreach ( array( 'admin_url', 'network_admin_url', 'site_url', 'includes_url', 'content_url', 'plugins_url', 'login_url', 'logout_url', 'lostpassword_url', 'register_url', 'wp_redirect', 'script_loader_src', 'style_loader_src' ) as $ip_hook ) {
-		add_filter( $ip_hook, 'ip_hide_paths', 99 );
+	foreach ( array( 'admin_url', 'network_admin_url', 'site_url', 'includes_url', 'content_url', 'plugins_url', 'login_url', 'logout_url', 'lostpassword_url', 'register_url', 'wp_redirect', 'script_loader_src', 'style_loader_src' ) as $cms_hook ) {
+		add_filter( $cms_hook, 'cms_hide_paths', 99 );
 	}
 	add_filter( 'rest_url_prefix', function () {
 		return 'api';
 	} );
 	if ( ! defined( 'WP_CLI' ) ) {
-		ob_start( 'ip_hide_paths' );
+		ob_start( 'cms_hide_paths' );
 	}
 
 	add_filter( 'mod_rewrite_rules', function ( $rules ) {
@@ -63,15 +62,15 @@ if ( defined( 'IP_HIDE_PATHS' ) && IP_HIDE_PATHS ) {
 			. "RewriteRule ^includes/(.*)$ wp-includes/$1 [L]\n";
 		return preg_replace( '#(RewriteBase [^\n]*\n)#', '$1' . $ours, $rules, 1 );
 	} );
-	if ( get_option( 'ip_rewrite_v' ) !== '1' ) {
+	if ( get_option( 'cms_rewrite_v' ) !== '1' ) {
 		add_action( 'init', function () {
 			flush_rewrite_rules();
-			update_option( 'ip_rewrite_v', '1' );
+			update_option( 'cms_rewrite_v', '1' );
 		}, 99 );
 	}
 }
 
-function ip_t( $en, $pl ) {
+function cms_t( $en, $pl ) {
 	return str_starts_with( get_user_locale(), 'pl' ) ? $pl : $en;
 }
 
@@ -90,16 +89,25 @@ add_filter( 'pre_site_transient_available_translations', function () {
 	);
 } );
 
-function ip_url( $file ) {
-	return content_url( 'mu-plugins/interpaste/' . $file );
+function cms_logo() {
+	$icon = get_site_icon_url( 64 );
+	if ( $icon ) {
+		return '<img class="cms-logo" src="' . esc_url( $icon ) . '" alt="">';
+	}
+	$name = trim( wp_strip_all_tags( get_bloginfo( 'name' ) ) );
+	return '<span class="cms-logo">' . esc_html( mb_strtoupper( mb_substr( $name ?: 'A', 0, 1 ) ) ) . '</span>';
 }
 
-function ip_rebrand( $text ) {
-	return str_replace( array( 'ClassicPress', 'WordPress' ), IP_BRAND, $text );
+function cms_url( $file ) {
+	return content_url( 'mu-plugins/cms/' . $file );
 }
-add_filter( 'gettext', 'ip_rebrand' );
-add_filter( 'gettext_with_context', 'ip_rebrand' );
-add_filter( 'ngettext', 'ip_rebrand' );
+
+function cms_rebrand( $text ) {
+	return str_replace( array( 'ClassicPress', 'WordPress' ), 'CMS', $text );
+}
+add_filter( 'gettext', 'cms_rebrand' );
+add_filter( 'gettext_with_context', 'cms_rebrand' );
+add_filter( 'ngettext', 'cms_rebrand' );
 
 add_filter( 'admin_footer_text', '__return_empty_string' );
 add_filter( 'update_footer', '__return_empty_string', 11 );
@@ -123,11 +131,17 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	foreach ( array( 'wp-logo', 'cp-logo', 'about', 'cp-debugging', 'updates' ) as $id ) {
 		$bar->remove_node( $id );
 	}
+	if ( $bar->get_node( 'site-name' ) ) {
+		$bar->add_node( array(
+			'id'    => 'site-name',
+			'title' => __( 'Visit Site' ),
+		) );
+	}
 	$bar->add_node( array(
-		'id'    => 'ip-brand',
-		'title' => '<img src="' . esc_url( ip_url( 'logo.png' ) ) . '" alt=""><span>' . IP_BRAND . '</span>',
+		'id'    => 'cms-brand',
+		'title' => cms_logo() . '<span>' . esc_html( get_bloginfo( 'name' ) ) . '</span>',
 		'href'  => admin_url(),
-		'meta'  => array( 'class' => 'ip-brand' ),
+		'meta'  => array( 'class' => 'cms-brand' ),
 	) );
 	$account = $bar->get_node( 'my-account' );
 	if ( $account ) {
@@ -145,16 +159,17 @@ add_action( 'wp_install', function () {
 } );
 
 add_filter( 'login_headerurl', 'home_url' );
-add_filter( 'login_headertext', function () {
+add_filter( 'login_headertitle', function () {
 	return get_bloginfo( 'name' );
 } );
 add_action( 'login_enqueue_scripts', function () {
-	wp_enqueue_style( 'ip-login', ip_url( 'login.css' ), array( 'login' ), filemtime( __DIR__ . '/interpaste/login.css' ) );
-	wp_add_inline_style( 'ip-login', '.login h1 a{background-image:url(' . esc_url( ip_url( 'logo.png' ) ) . ')!important}' );
+	wp_enqueue_style( 'cms-login', cms_url( 'login.css' ), array( 'login' ), filemtime( __DIR__ . '/cms/login.css' ) );
+	$icon = get_site_icon_url( 128 );
+	wp_add_inline_style( 'cms-login', $icon ? '.login h1 a{background-image:url(' . esc_url( $icon ) . ')!important}' : '.login h1 a{background:none!important;text-indent:0;width:auto;height:auto;font-size:26px;font-weight:700;color:#fff;box-shadow:none;overflow:visible}' );
 } );
 
 // Lucide icons, ISC license.
-function ip_icons() {
+function cms_icons() {
 	return array(
 		'dashboard'  => '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
 		'posts'      => '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/>',
@@ -170,37 +185,37 @@ function ip_icons() {
 	);
 }
 
-function ip_svg_uri( $inner ) {
+function cms_svg_uri( $inner ) {
 	$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $inner . '</svg>';
 	return 'url("data:image/svg+xml,' . rawurlencode( $svg ) . '")';
 }
 
 add_action( 'admin_enqueue_scripts', function () {
-	wp_enqueue_style( 'ip-admin-bar', ip_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/interpaste/admin-bar.css' ) );
-	wp_enqueue_style( 'ip-admin', ip_url( 'admin.css' ), array( 'colors' ), filemtime( __DIR__ . '/interpaste/admin.css' ) );
+	wp_enqueue_style( 'cms-admin-bar', cms_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/cms/admin-bar.css' ) );
+	wp_enqueue_style( 'cms-admin', cms_url( 'admin.css' ), array( 'colors' ), filemtime( __DIR__ . '/cms/admin.css' ) );
 	$css = '';
-	foreach ( ip_icons() as $id => $inner ) {
-		$css .= "#adminmenu #menu-$id .wp-menu-image:before{content:'';background:currentColor;display:block;width:20px;height:20px;padding:0;margin:10px auto;-webkit-mask:" . ip_svg_uri( $inner ) . ' center/20px no-repeat;mask:' . ip_svg_uri( $inner ) . ' center/20px no-repeat}';
+	foreach ( cms_icons() as $id => $inner ) {
+		$css .= "#adminmenu #menu-$id .wp-menu-image:before{content:'';background:currentColor;display:block;width:20px;height:20px;padding:0;margin:10px auto;-webkit-mask:" . cms_svg_uri( $inner ) . ' center/20px no-repeat;mask:' . cms_svg_uri( $inner ) . ' center/20px no-repeat}';
 	}
-	wp_add_inline_style( 'ip-admin', $css );
+	wp_add_inline_style( 'cms-admin', $css );
 }, 99 );
 
 add_action( 'wp_enqueue_scripts', function () {
 	if ( is_admin_bar_showing() ) {
-		wp_enqueue_style( 'ip-admin-bar', ip_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/interpaste/admin-bar.css' ) );
+		wp_enqueue_style( 'cms-admin-bar', cms_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/cms/admin-bar.css' ) );
 	}
 } );
 
 add_action( 'wp_dashboard_setup', function () {
 	global $wp_meta_boxes;
 	$wp_meta_boxes['dashboard'] = array();
-	wp_add_dashboard_widget( 'ip_overview', ip_t( 'Overview', 'Przegląd' ), 'ip_overview' );
+	wp_add_dashboard_widget( 'cms_overview', cms_t( 'Overview', 'Przegląd' ), 'cms_overview' );
 }, 999 );
 add_filter( 'get_user_option_screen_layout_dashboard', function () {
 	return 1;
 } );
 
-function ip_recent( $type ) {
+function cms_recent( $type ) {
 	$q = new WP_Query( array(
 		'post_type'      => $type,
 		'post_status'    => 'publish',
@@ -211,7 +226,7 @@ function ip_recent( $type ) {
 	return $q->found_posts;
 }
 
-function ip_weekly( $from_where, $col ) {
+function cms_weekly( $from_where, $col ) {
 	global $wpdb;
 	$now  = current_time( 'mysql' );
 	$rows = $wpdb->get_results( $wpdb->prepare(
@@ -228,19 +243,19 @@ function ip_weekly( $from_where, $col ) {
 	return $out;
 }
 
-function ip_bars( $weeks ) {
+function cms_bars( $weeks ) {
 	if ( ! $weeks ) {
 		return '';
 	}
 	$max  = max( 1, max( $weeks ) );
-	$html = '<span class="ip-bars" aria-hidden="true">';
+	$html = '<span class="cms-bars" aria-hidden="true">';
 	foreach ( $weeks as $i => $n ) {
-		$html .= sprintf( '<i style="height:%dpx"%s></i>', 3 + round( 23 * $n / $max ), 6 === $i ? ' class="ip-now"' : '' );
+		$html .= sprintf( '<i style="height:%dpx"%s></i>', 3 + round( 23 * $n / $max ), 6 === $i ? ' class="cms-now"' : '' );
 	}
 	return $html . '</span>';
 }
 
-function ip_overview() {
+function cms_overview() {
 	$posts     = wp_count_posts();
 	$pages     = wp_count_posts( 'page' );
 	$comments  = wp_count_comments();
@@ -251,37 +266,37 @@ function ip_overview() {
 		'fields'      => 'ID',
 		'count_total' => true,
 	) ) )->get_total();
-	$month     = ip_t( 'in 30 days', 'w 30 dni' );
+	$month     = cms_t( 'in 30 days', 'w 30 dni' );
 	global $wpdb;
 	$posts_sql = function ( $type ) use ( $wpdb ) {
 		return $wpdb->prepare( "FROM $wpdb->posts WHERE post_type = %s AND post_status = 'publish'", $type );
 	};
 	$stats     = array(
-		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php', '#5b45e0', ip_weekly( $posts_sql( 'post' ), 'post_date' ), '+' . number_format_i18n( ip_recent( 'post' ) ) . ' ' . $month ),
-		array( 'drafts', ip_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft', '#d97706', null, ip_t( 'waiting to publish', 'czeka na publikację' ) ),
-		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page', '#2563eb', ip_weekly( $posts_sql( 'page' ), 'post_date' ), '+' . number_format_i18n( ip_recent( 'page' ) ) . ' ' . $month ),
-		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php', '#059669', ip_weekly( "FROM $wpdb->comments WHERE comment_approved = '1'", 'comment_date' ), number_format_i18n( $comments->moderated ) . ' ' . ip_t( 'awaiting moderation', 'do moderacji' ) ),
-		array( 'users', __( 'Users' ), $users['total_users'], 'users.php', '#db2777', ip_weekly( "FROM $wpdb->users WHERE 1=1", 'user_registered' ), '+' . number_format_i18n( $new_users ) . ' ' . $month ),
+		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php', '#5b45e0', cms_weekly( $posts_sql( 'post' ), 'post_date' ), '+' . number_format_i18n( cms_recent( 'post' ) ) . ' ' . $month ),
+		array( 'drafts', cms_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft', '#d97706', null, cms_t( 'waiting to publish', 'czeka na publikację' ) ),
+		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page', '#2563eb', cms_weekly( $posts_sql( 'page' ), 'post_date' ), '+' . number_format_i18n( cms_recent( 'page' ) ) . ' ' . $month ),
+		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php', '#059669', cms_weekly( "FROM $wpdb->comments WHERE comment_approved = '1'", 'comment_date' ), number_format_i18n( $comments->moderated ) . ' ' . cms_t( 'awaiting moderation', 'do moderacji' ) ),
+		array( 'users', __( 'Users' ), $users['total_users'], 'users.php', '#db2777', cms_weekly( "FROM $wpdb->users WHERE 1=1", 'user_registered' ), '+' . number_format_i18n( $new_users ) . ' ' . $month ),
 	);
-	echo '<div class="ip-stats">';
+	echo '<div class="cms-stats">';
 	foreach ( $stats as list( $icon, $label, $n, $url, $c, $weeks, $sub ) ) {
 		printf(
-			'<a class="ip-stat" href="%s" style="--c:%s"><span class="ip-h">%s<i class="ip-i ip-i-%s"></i></span><span class="ip-n"><b>%s</b>%s</span><small>%s</small></a>',
+			'<a class="cms-stat" href="%s" style="--c:%s"><span class="cms-h">%s<i class="cms-i cms-i-%s"></i></span><span class="cms-n"><b>%s</b>%s</span><small>%s</small></a>',
 			esc_url( admin_url( $url ) ),
 			esc_attr( $c ),
 			esc_html( $label ),
 			esc_attr( $icon ),
 			esc_html( number_format_i18n( $n ) ),
-			ip_bars( $weeks ),
+			cms_bars( $weeks ),
 			esc_html( $sub )
 		);
 	}
-	echo '</div><div class="ip-cols"><section><h3>' . esc_html__( 'Recently Published' ) . '</h3>';
+	echo '</div><div class="cms-cols"><section><h3>' . esc_html__( 'Recently Published' ) . '</h3>';
 	$recent = get_posts( array( 'numberposts' => 6, 'post_status' => array( 'publish', 'draft', 'pending', 'future' ) ) );
 	foreach ( $recent as $p ) {
 		$status = get_post_status_object( $p->post_status );
 		printf(
-			'<a class="ip-row" href="%s"><span>%s</span><i class="ip-st ip-%s">%s</i><em>%s</em></a>',
+			'<a class="cms-row" href="%s"><span>%s</span><i class="cms-st cms-%s">%s</i><em>%s</em></a>',
 			esc_url( get_edit_post_link( $p ) ),
 			esc_html( get_the_title( $p ) ?: __( '(no title)' ) ),
 			esc_attr( $p->post_status ),
@@ -292,7 +307,7 @@ function ip_overview() {
 	echo '</section><section><h3>' . esc_html__( 'Recent Comments' ) . '</h3>';
 	foreach ( get_comments( array( 'number' => 6, 'status' => 'approve' ) ) as $c ) {
 		printf(
-			'<a class="ip-row ip-c" href="%s"><span><b>%s</b> %s</span><em>%s</em></a>',
+			'<a class="cms-row cms-c" href="%s"><span><b>%s</b> %s</span><em>%s</em></a>',
 			esc_url( admin_url( 'comment.php?action=editcomment&c=' . $c->comment_ID ) ),
 			esc_html( $c->comment_author ),
 			esc_html( wp_trim_words( $c->comment_content, 10 ) ),
@@ -302,7 +317,7 @@ function ip_overview() {
 	echo '</section></div>';
 	echo '<style>';
 	foreach ( array( 'posts', 'drafts', 'pages', 'comments', 'users' ) as $id ) {
-		echo '.ip-i-' . $id . ':after{-webkit-mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat;mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat}';
+		echo '.cms-i-' . $id . ':after{-webkit-mask:' . cms_svg_uri( cms_icons()[ $id ] ) . ' center/20px no-repeat;mask:' . cms_svg_uri( cms_icons()[ $id ] ) . ' center/20px no-repeat}';
 	}
 	echo '</style>';
 }

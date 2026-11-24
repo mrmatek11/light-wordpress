@@ -1,5 +1,5 @@
 <?php
-// php -S 127.0.0.1:8080 -t src tools/interpaste-router.php
+// php -S 127.0.0.1:8080 -t src tools/dev-router.php
 $root = rtrim( $_SERVER['DOCUMENT_ROOT'], '/' );
 $path = rawurldecode( parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) );
 
