@@ -159,6 +159,7 @@ function ip_icons() {
 		'dashboard'  => '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
 		'posts'      => '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/>',
 		'media'      => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+		'drafts'     => '<path d="M12 20h9"/><path d="M16.4 3.6a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/>',
 		'pages'      => '<path d="M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8Z"/><path d="m22 12.6-9.2 4.2a2 2 0 0 1-1.6 0L2 12.6"/><path d="m22 17.6-9.2 4.2a2 2 0 0 1-1.6 0L2 17.6"/>',
 		'comments'   => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 		'appearance' => '<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.3a1.8 1.8 0 0 0-1.4 2.8l.3.4a1.8 1.8 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/>',
@@ -199,26 +200,46 @@ add_filter( 'get_user_option_screen_layout_dashboard', function () {
 	return 1;
 } );
 
+function ip_recent( $type ) {
+	$q = new WP_Query( array(
+		'post_type'      => $type,
+		'post_status'    => 'publish',
+		'date_query'     => array( array( 'after' => '30 days ago' ) ),
+		'posts_per_page' => 1,
+		'fields'         => 'ids',
+	) );
+	return $q->found_posts;
+}
+
 function ip_overview() {
-	$posts    = wp_count_posts();
-	$pages    = wp_count_posts( 'page' );
-	$comments = wp_count_comments();
-	$users    = count_users();
-	$stats    = array(
-		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php' ),
-		array( 'posts', ip_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft' ),
-		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page' ),
-		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php' ),
-		array( 'users', __( 'Users' ), $users['total_users'], 'users.php' ),
+	$posts     = wp_count_posts();
+	$pages     = wp_count_posts( 'page' );
+	$comments  = wp_count_comments();
+	$users     = count_users();
+	$new_users = ( new WP_User_Query( array(
+		'date_query'  => array( array( 'after' => '30 days ago' ) ),
+		'number'      => 1,
+		'fields'      => 'ID',
+		'count_total' => true,
+	) ) )->get_total();
+	$month     = ip_t( 'in 30 days', 'w 30 dni' );
+	$stats     = array(
+		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php', '#5b45e0', '+' . number_format_i18n( ip_recent( 'post' ) ) . ' ' . $month ),
+		array( 'drafts', ip_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft', '#b45309', ip_t( 'waiting to publish', 'czeka na publikację' ) ),
+		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page', '#2563eb', '+' . number_format_i18n( ip_recent( 'page' ) ) . ' ' . $month ),
+		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php', '#047857', number_format_i18n( $comments->moderated ) . ' ' . ip_t( 'awaiting moderation', 'do moderacji' ) ),
+		array( 'users', __( 'Users' ), $users['total_users'], 'users.php', '#be185d', '+' . number_format_i18n( $new_users ) . ' ' . $month ),
 	);
 	echo '<div class="ip-stats">';
-	foreach ( $stats as list( $icon, $label, $n, $url ) ) {
+	foreach ( $stats as list( $icon, $label, $n, $url, $c, $sub ) ) {
 		printf(
-			'<a class="ip-stat" href="%s"><i class="ip-i ip-i-%s"></i><span>%s</span><b>%s</b></a>',
+			'<a class="ip-stat" href="%s" style="--c:%s"><span class="ip-h"><i class="ip-i ip-i-%s"></i>%s</span><b>%s</b><small>%s</small></a>',
 			esc_url( admin_url( $url ) ),
+			esc_attr( $c ),
 			esc_attr( $icon ),
 			esc_html( $label ),
-			esc_html( number_format_i18n( $n ) )
+			esc_html( number_format_i18n( $n ) ),
+			esc_html( $sub )
 		);
 	}
 	echo '</div><div class="ip-cols"><section><h3>' . esc_html__( 'Recently Published' ) . '</h3>';
@@ -226,27 +247,27 @@ function ip_overview() {
 	foreach ( $recent as $p ) {
 		$status = get_post_status_object( $p->post_status );
 		printf(
-			'<a class="ip-row" href="%s"><span>%s</span><em><mark class="ip-pill ip-%s">%s</mark>%s</em></a>',
+			'<a class="ip-row" href="%s"><span>%s</span><i class="ip-st ip-%s">%s</i><em>%s</em></a>',
 			esc_url( get_edit_post_link( $p ) ),
 			esc_html( get_the_title( $p ) ?: __( '(no title)' ) ),
 			esc_attr( $p->post_status ),
 			esc_html( $status ? $status->label : $p->post_status ),
-			esc_html( get_the_date( '', $p ) )
+			esc_html( get_the_date( 'j M', $p ) )
 		);
 	}
 	echo '</section><section><h3>' . esc_html__( 'Recent Comments' ) . '</h3>';
 	foreach ( get_comments( array( 'number' => 6, 'status' => 'approve' ) ) as $c ) {
 		printf(
-			'<a class="ip-row" href="%s"><span><b>%s</b> %s</span><em>%s</em></a>',
+			'<a class="ip-row ip-c" href="%s"><span><b>%s</b> %s</span><em>%s</em></a>',
 			esc_url( admin_url( 'comment.php?action=editcomment&c=' . $c->comment_ID ) ),
 			esc_html( $c->comment_author ),
 			esc_html( wp_trim_words( $c->comment_content, 10 ) ),
-			esc_html( get_comment_date( '', $c ) )
+			esc_html( get_comment_date( 'j M', $c ) )
 		);
 	}
 	echo '</section></div>';
 	echo '<style>';
-	foreach ( array( 'posts', 'pages', 'comments', 'users' ) as $id ) {
+	foreach ( array( 'posts', 'drafts', 'pages', 'comments', 'users' ) as $id ) {
 		echo '.ip-i-' . $id . ':after{-webkit-mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat;mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat}';
 	}
 	echo '</style>';
