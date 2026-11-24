@@ -1,4 +1,3 @@
-/* Interpaste admin theme. Overrides core styles only — no markup changes, so plugin screens inherit it. */
 :root{
 	--ip-side:#1f1646;--ip-side-2:#2a1f5c;--ip-side-txt:#d9d4ff;
 	--ip-acc:#5b45e0;--ip-acc-h:#4a35c9;--ip-accbg:#f1effe;
@@ -6,14 +5,12 @@
 	--ip-r:14px;--ip-font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
 }
 
-/* ---------- Frame ---------- */
 html,body.wp-admin,#wpwrap{background:var(--ip-side)}
 body.wp-admin{font-family:var(--ip-font);color:var(--ip-txt);font-size:14px}
 #wpcontent{background:var(--ip-bg);border-top-left-radius:24px;padding:8px 32px 48px;min-height:calc(100vh - 48px);box-sizing:border-box}
 #wpbody-content{padding-bottom:40px}
 #wpfooter{display:none}
 
-/* ---------- Side menu ---------- */
 #adminmenuback,#adminmenuwrap,#adminmenu,#adminmenu .wp-submenu{background:var(--ip-side)}
 #adminmenu{margin:8px 0 12px}
 #adminmenu li.menu-top{margin:2px 10px;border-radius:10px}
@@ -26,12 +23,10 @@ body.wp-admin{font-family:var(--ip-font);color:var(--ip-txt);font-size:14px}
 #adminmenu li.wp-has-current-submenu a.wp-has-current-submenu,#adminmenu li.current a.menu-top{background:rgba(255,255,255,.12);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
 #adminmenu .wp-has-current-submenu div.wp-menu-image:before,#adminmenu .current div.wp-menu-image:before{color:#fff;opacity:1}
 #adminmenu li.wp-has-current-submenu .wp-menu-arrow,#adminmenu li.current .wp-menu-arrow,#adminmenu li.wp-has-current-submenu a.wp-has-current-submenu:after,#adminmenu li.current a.menu-top:after,#adminmenu li.wp-has-submenu.wp-not-current-submenu.opensub:hover:after,#adminmenu li.wp-has-submenu.wp-not-current-submenu:focus-within:after{display:none}
-/* open submenu: indented list with a guide line, TYPO3-style */
 #adminmenu .wp-has-current-submenu .wp-submenu,#adminmenu .wp-has-current-submenu.opensub .wp-submenu{background:transparent;margin:4px 0 6px 20px;padding:0 0 0 0;border-left:1px solid rgba(255,255,255,.14);width:auto}
 #adminmenu .wp-submenu a{color:rgba(217,212,255,.75);padding:7px 12px;border-radius:0 8px 8px 0;font-size:13px}
 #adminmenu .wp-submenu a:hover,#adminmenu .wp-submenu a:focus{color:#fff;background:rgba(255,255,255,.06);box-shadow:none}
 #adminmenu .wp-submenu li.current a{color:#fff;font-weight:600;box-shadow:inset 2px 0 0 #a89bff}
-/* flyout submenus */
 #adminmenu .wp-not-current-submenu .wp-submenu,.folded #adminmenu .wp-has-current-submenu .wp-submenu{background:var(--ip-side-2);border-radius:12px;padding:6px;box-shadow:0 16px 40px rgba(0,0,0,.35);margin-left:6px}
 #adminmenu .wp-not-current-submenu .wp-submenu a{border-radius:8px}
 #adminmenu .wp-submenu-head,#adminmenu a.menu-top{font-size:14px}
@@ -54,7 +49,6 @@ body.wp-admin{font-family:var(--ip-font);color:var(--ip-txt);font-size:14px}
 .folded #adminmenu li.menu-top{margin:2px 0}
 .folded #wpcontent{border-top-left-radius:24px}
 
-/* ---------- Typography & page header ---------- */
 .wrap{margin:16px 0 0}
 .wrap h1,.wrap h1.wp-heading-inline{font-size:26px;font-weight:700;letter-spacing:-.01em;padding:10px 0 14px;color:var(--ip-txt)}
 .wrap h2,.postbox .hndle,.stuffbox .hndle{font-weight:650}
@@ -64,7 +58,6 @@ a{color:var(--ip-acc)}a:hover,a:active{color:var(--ip-acc-h)}
 #screen-meta-links .screen-meta-toggle{margin-top:8px}
 #screen-meta{border:1px solid var(--ip-line);border-radius:var(--ip-r);box-shadow:none;margin:8px 0}
 
-/* ---------- Buttons ---------- */
 .wp-core-ui .button,.wp-core-ui .button-secondary{border-radius:9px;border:1px solid var(--ip-line);background:var(--ip-card);color:var(--ip-txt);min-height:34px;line-height:32px;padding:0 14px;font-weight:500;box-shadow:0 1px 2px rgba(20,20,40,.04);transition:background .12s,border-color .12s,box-shadow .12s}
 .wp-core-ui .button:hover,.wp-core-ui .button-secondary:hover{background:#fafaff;border-color:#d4d1f0;color:var(--ip-txt)}
 .wp-core-ui .button:focus,.wp-core-ui .button-secondary:focus{border-color:var(--ip-acc);box-shadow:0 0 0 3px rgba(91,69,224,.18);color:var(--ip-txt)}
@@ -78,7 +71,6 @@ a{color:var(--ip-acc)}a:hover,a:active{color:var(--ip-acc-h)}
 .wp-core-ui .button-link-delete,#delete-action .submitdelete,.submitbox .submitdelete{color:#d1344b}
 .wp-core-ui .button.button-large{min-height:40px;line-height:38px;padding:0 18px}
 
-/* ---------- Form fields ---------- */
 input[type=text],input[type=search],input[type=email],input[type=url],input[type=password],input[type=number],input[type=tel],input[type=date],input[type=datetime-local],select,textarea{border:1px solid var(--ip-line);border-radius:9px;background-color:#fff;box-shadow:none;color:var(--ip-txt);min-height:34px}
 input[type=text]:focus,input[type=search]:focus,input[type=email]:focus,input[type=url]:focus,input[type=password]:focus,input[type=number]:focus,select:focus,textarea:focus{border-color:var(--ip-acc);box-shadow:0 0 0 3px rgba(91,69,224,.18);outline:0}
 input[type=checkbox],input[type=radio]{border-color:#c9cbd8;border-radius:5px;box-shadow:none}
@@ -87,7 +79,6 @@ input[type=checkbox]:checked{background:var(--ip-acc);border-color:var(--ip-acc)
 input[type=checkbox]:checked::before{filter:brightness(0) invert(1)}
 input[type=radio]:checked::before{background:var(--ip-acc)}
 
-/* ---------- Cards / postboxes ---------- */
 .postbox,.stuffbox,.card,.welcome-panel,.wrap .settings-box{border:1px solid var(--ip-line);border-radius:var(--ip-r);box-shadow:0 1px 2px rgba(20,20,40,.03);background:var(--ip-card)}
 .postbox>summary,.postbox .postbox-header{border-bottom:1px solid var(--ip-line);border-radius:var(--ip-r) var(--ip-r) 0 0}
 .postbox:not([open])>summary{border-bottom:0}
@@ -96,13 +87,11 @@ input[type=radio]:checked::before{background:var(--ip-acc)}
 .handle-actions .handle-order-higher,.handle-actions .handle-order-lower{display:none}
 .metabox-holder .postbox-container .empty-container{border-radius:var(--ip-r);border-color:var(--ip-line)}
 
-/* ---------- Notices ---------- */
 .notice,div.updated,div.error{border:1px solid var(--ip-line);border-left:4px solid var(--ip-acc);border-radius:12px;box-shadow:0 1px 2px rgba(20,20,40,.04);padding:6px 14px}
 .notice-success,div.updated{border-left-color:#16a34a}
 .notice-error,div.error{border-left-color:#d1344b}
 .notice-warning{border-left-color:#e3a008}
 
-/* ---------- List tables ---------- */
 .subsubsub{font-size:13px;margin:6px 0 12px;color:var(--ip-line)}
 .subsubsub a{display:inline-block;padding:4px 10px;border-radius:99px;color:var(--ip-mut)}
 .subsubsub a.current{background:var(--ip-accbg);color:var(--ip-acc);font-weight:600}
@@ -129,7 +118,6 @@ p.search-box input[type=search]{min-width:220px}
 .wp-list-table .column-comments .post-com-count-approved:after{display:none}
 .tablenav .tablenav-pages a,.tablenav-pages-navspan{border-radius:8px;border-color:var(--ip-line);background:var(--ip-card)}
 
-/* ---------- Post editor ---------- */
 #titlediv #title{border-radius:12px;padding:10px 16px;font-size:24px;font-weight:650;height:auto;border-color:var(--ip-line)}
 #titlediv #title:focus{border-color:var(--ip-acc)}
 #edit-slug-box{padding:8px 4px;color:var(--ip-mut)}
@@ -148,13 +136,11 @@ div.mce-toolbar-grp,.quicktags-toolbar{background:#fafafd;border-bottom:1px soli
 .category-tabs li.tabs,.category-tabs .tabs a{border-radius:8px 8px 0 0}
 #insert-media-button .wp-media-buttons-icon:before{color:var(--ip-acc)}
 
-/* ---------- Media ---------- */
 .media-frame .attachment-preview,.wp-core-ui .attachment-preview{border-radius:10px;overflow:hidden}
 .media-modal-content{border-radius:16px;overflow:hidden}
 .wp-filter,.media-toolbar.wp-filter{border:1px solid var(--ip-line);border-radius:var(--ip-r);box-shadow:none}
 .uploader-inline,.drag-drop #drag-drop-area{border-radius:var(--ip-r);border-color:#d4d1f0}
 
-/* ---------- Dashboard overview widget ---------- */
 #dashboard-widgets #postbox-container-1{width:100%!important;float:none}
 #ip_overview{background:transparent;border:0;box-shadow:none}
 #ip_overview>summary,#ip_overview .postbox-header{display:none}
@@ -178,7 +164,6 @@ div.mce-toolbar-grp,.quicktags-toolbar{background:#fafafd;border-bottom:1px soli
 .ip-pill.ip-draft,.ip-pill.ip-pending{background:#fff4db;color:#9a6700}
 .ip-pill.ip-future{background:var(--ip-accbg);color:var(--ip-acc)}
 
-/* ---------- Mobile ---------- */
 @media screen and (max-width:782px){
 	#wpcontent{padding:8px 14px 40px;border-radius:20px 20px 0 0;margin-left:0}
 	.auto-fold #adminmenu li.menu-top{margin:2px 6px}

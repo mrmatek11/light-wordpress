@@ -1,4 +1,3 @@
-/* Top bar — loaded in admin and on the front end for logged-in users. */
 #wpadminbar{background:#1f1646;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px}
 #wpadminbar .ab-top-menu>li:hover>.ab-item,
 #wpadminbar .ab-top-menu>li.hover>.ab-item,

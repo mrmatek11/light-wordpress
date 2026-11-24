@@ -1,20 +1,99 @@
 <?php
 /**
  * Plugin Name: Interpaste Admin
- * Description: Modern, white-labelled admin UI. Lives in mu-plugins so core stays untouched and updatable.
  */
 
 defined( 'ABSPATH' ) || exit;
 
 const IP_BRAND = 'Interpaste';
+const IP_PATHS = array(
+	'wp-admin'     => 'admin',
+	'wp-login.php' => 'login',
+	'wp-content'   => 'content',
+	'wp-includes'  => 'includes',
+);
+
+function ip_hide_paths( $s ) {
+	if ( ! is_string( $s ) ) {
+		return $s;
+	}
+	return preg_replace_callback(
+		'#(\\\\?/)(wp-admin|wp-content|wp-includes|wp-login\.php)(?![\w.-])#',
+		function ( $m ) {
+			return $m[1] . IP_PATHS[ $m[2] ];
+		},
+		$s
+	);
+}
+
+if ( defined( 'IP_HIDE_PATHS' ) && IP_HIDE_PATHS ) {
+	$ip_base = wp_parse_url( get_option( 'siteurl' ), PHP_URL_PATH );
+	$ip_base = rtrim( (string) $ip_base, '/' ) . '/';
+	defined( 'ADMIN_COOKIE_PATH' ) || define( 'ADMIN_COOKIE_PATH', $ip_base );
+	defined( 'PLUGINS_COOKIE_PATH' ) || define( 'PLUGINS_COOKIE_PATH', $ip_base );
+
+	$ip_path = (string) wp_parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH );
+	if ( preg_match( '#/(wp-admin|wp-login\.php)(/|$)#', $ip_path ) && ! preg_match( '#/wp-admin/(admin-ajax|admin-post)\.php$#', $ip_path ) ) {
+		status_header( 404 );
+		nocache_headers();
+		exit;
+	}
+	$_SERVER['REQUEST_URI'] = preg_replace(
+		array( '#^' . preg_quote( $ip_base, '#' ) . 'admin(/|$)#', '#^' . preg_quote( $ip_base, '#' ) . 'login/?(?=\?|$)#' ),
+		array( $ip_base . 'wp-admin$1', $ip_base . 'wp-login.php' ),
+		$_SERVER['REQUEST_URI'],
+		1
+	);
+
+	foreach ( array( 'admin_url', 'network_admin_url', 'site_url', 'includes_url', 'content_url', 'plugins_url', 'login_url', 'logout_url', 'lostpassword_url', 'register_url', 'wp_redirect', 'script_loader_src', 'style_loader_src' ) as $ip_hook ) {
+		add_filter( $ip_hook, 'ip_hide_paths', 99 );
+	}
+	add_filter( 'rest_url_prefix', function () {
+		return 'api';
+	} );
+	if ( ! defined( 'WP_CLI' ) ) {
+		ob_start( 'ip_hide_paths' );
+	}
+
+	add_filter( 'mod_rewrite_rules', function ( $rules ) {
+		$ours = "RewriteRule ^admin$ admin/ [R=301,L]\n"
+			. "RewriteRule ^admin/(.*)$ wp-admin/$1 [L,QSA]\n"
+			. "RewriteRule ^login/?$ wp-login.php [L,QSA]\n"
+			. "RewriteRule ^content/(.*)$ wp-content/$1 [L]\n"
+			. "RewriteRule ^includes/(.*)$ wp-includes/$1 [L]\n";
+		return preg_replace( '#(RewriteBase [^\n]*\n)#', '$1' . $ours, $rules, 1 );
+	} );
+	if ( get_option( 'ip_rewrite_v' ) !== '1' ) {
+		add_action( 'init', function () {
+			flush_rewrite_rules();
+			update_option( 'ip_rewrite_v', '1' );
+		}, 99 );
+	}
+}
+
+function ip_t( $en, $pl ) {
+	return str_starts_with( get_user_locale(), 'pl' ) ? $pl : $en;
+}
+
+add_filter( 'pre_site_transient_available_translations', function () {
+	return array(
+		'pl_PL' => array(
+			'language'     => 'pl_PL',
+			'english_name' => 'Polish',
+			'native_name'  => 'Polski',
+			'iso'          => array( 'pl', 'pol' ),
+			'version'      => '',
+			'updated'      => '',
+			'package'      => '',
+			'strings'      => array( 'continue' => 'Kontynuuj' ),
+		),
+	);
+} );
 
 function ip_url( $file ) {
 	return content_url( 'mu-plugins/interpaste/' . $file );
 }
 
-/* ---------- White-label ---------- */
-
-// Every translatable core string that names the platform. Covers titles, notices, footers, login.
 function ip_rebrand( $text ) {
 	return str_replace( array( 'ClassicPress', 'WordPress' ), IP_BRAND, $text );
 }
@@ -34,7 +113,6 @@ add_action( 'admin_head', function () {
 	}
 } );
 
-// Core update nags are for the developer, not the client.
 add_action( 'admin_init', function () {
 	remove_action( 'admin_notices', 'update_nag', 3 );
 	remove_action( 'network_admin_notices', 'update_nag', 3 );
@@ -51,7 +129,6 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 		'href'  => admin_url(),
 		'meta'  => array( 'class' => 'ip-brand' ),
 	) );
-	// Greeting without "Howdy".
 	$account = $bar->get_node( 'my-account' );
 	if ( $account ) {
 		$user = wp_get_current_user();
@@ -62,12 +139,10 @@ add_action( 'admin_bar_menu', function ( $bar ) {
 	}
 }, 999 );
 
-// Fresh installs ship a sample comment authored by "A ClassicPress Commenter" with upstream URLs.
 add_action( 'wp_install', function () {
 	wp_delete_comment( 1, true );
+	update_option( 'WPLANG', 'pl_PL' );
 } );
-
-/* ---------- Login screen ---------- */
 
 add_filter( 'login_headerurl', 'home_url' );
 add_filter( 'login_headertext', function () {
@@ -78,9 +153,7 @@ add_action( 'login_enqueue_scripts', function () {
 	wp_add_inline_style( 'ip-login', '.login h1 a{background-image:url(' . esc_url( ip_url( 'logo.png' ) ) . ')!important}' );
 } );
 
-/* ---------- Admin theme ---------- */
-
-// Stroke icons (Lucide, ISC licence) for core menu items. Plugin menus keep their own icon.
+// Lucide icons, ISC license.
 function ip_icons() {
 	return array(
 		'dashboard'  => '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
@@ -111,19 +184,16 @@ add_action( 'admin_enqueue_scripts', function () {
 	wp_add_inline_style( 'ip-admin', $css );
 }, 99 );
 
-// Same top bar look on the front end for logged-in users.
 add_action( 'wp_enqueue_scripts', function () {
 	if ( is_admin_bar_showing() ) {
 		wp_enqueue_style( 'ip-admin-bar', ip_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/interpaste/admin-bar.css' ) );
 	}
 } );
 
-/* ---------- Dashboard ---------- */
-
 add_action( 'wp_dashboard_setup', function () {
 	global $wp_meta_boxes;
 	$wp_meta_boxes['dashboard'] = array();
-	wp_add_dashboard_widget( 'ip_overview', __( 'Overview' ), 'ip_overview' );
+	wp_add_dashboard_widget( 'ip_overview', ip_t( 'Overview', 'Przegląd' ), 'ip_overview' );
 }, 999 );
 add_filter( 'get_user_option_screen_layout_dashboard', function () {
 	return 1;
@@ -136,7 +206,7 @@ function ip_overview() {
 	$users    = count_users();
 	$stats    = array(
 		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php' ),
-		array( 'posts', __( 'Drafts' ), $posts->draft, 'edit.php?post_status=draft' ),
+		array( 'posts', ip_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft' ),
 		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page' ),
 		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php' ),
 		array( 'users', __( 'Users' ), $users['total_users'], 'users.php' ),
@@ -175,7 +245,6 @@ function ip_overview() {
 		);
 	}
 	echo '</section></div>';
-	// Icons for the stat cards reuse the menu set.
 	echo '<style>';
 	foreach ( array( 'posts', 'pages', 'comments', 'users' ) as $id ) {
 		echo '.ip-i-' . $id . ':after{-webkit-mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat;mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat}';
