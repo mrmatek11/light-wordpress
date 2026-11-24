@@ -143,13 +143,22 @@ div.mce-toolbar-grp,.quicktags-toolbar{background:#fafafd;border-bottom:1px soli
 #dashboard-widgets #postbox-container-2,#dashboard-widgets #postbox-container-3,#dashboard-widgets #postbox-container-4{display:none}
 #ip_overview .inside{padding:0;margin:0}
 .ip-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
-.ip-stat{display:flex;flex-direction:column;padding:18px 20px;border:1px solid var(--ip-line);border-radius:var(--ip-r);background:var(--ip-card);text-decoration:none;color:var(--ip-txt)}
+.ip-stat{display:flex;flex-direction:column;padding:18px 20px;border:1px solid var(--ip-line);border-radius:16px;background:var(--ip-card);text-decoration:none;color:var(--ip-txt)}
 .ip-stat:focus{box-shadow:0 0 0 2px var(--ip-acc);color:var(--ip-txt)}
-.ip-h{display:flex;align-items:center;gap:10px;color:var(--ip-mut);font-size:13px;font-weight:500}
-.ip-i{position:relative;flex:none;width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,var(--c) 10%,#fff)}
-.ip-i:after{content:"";position:absolute;inset:5px;background:var(--c)}
-.ip-stat b{font-size:30px;line-height:1.1;font-weight:700;letter-spacing:-.02em;margin-top:14px;font-variant-numeric:tabular-nums}
-.ip-stat small{margin-top:6px;color:var(--ip-mut);font-size:12px}
+.ip-h{display:flex;align-items:center;justify-content:space-between;color:var(--ip-mut);font-size:13px;font-weight:500}
+.ip-i{position:relative;flex:none;width:36px;height:36px;border-radius:10px;background:color-mix(in srgb,var(--c) 11%,#fff)}
+.ip-i:after{content:"";position:absolute;inset:8px;background:var(--c)}
+.ip-n{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:12px}
+.ip-stat b{font-size:34px;line-height:1;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ip-bars{display:flex;align-items:flex-end;gap:3px;height:26px}
+.ip-bars i{width:6px;border-radius:2px;background:var(--c);opacity:.35}
+.ip-bars i.ip-now{opacity:1}
+.ip-stat small{margin-top:10px;color:var(--ip-mut);font-size:12px}
+.ip-stat:first-child{background:var(--ip-side);border-color:var(--ip-side);color:#fff}
+.ip-stat:first-child .ip-h,.ip-stat:first-child small{color:rgba(255,255,255,.7)}
+.ip-stat:first-child .ip-i{background:var(--c)}
+.ip-stat:first-child .ip-i:after{background:#fff}
+.ip-stat:first-child .ip-bars i{background:#fff}
 .ip-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
 .ip-cols section{border:1px solid var(--ip-line);border-radius:var(--ip-r);background:var(--ip-card);padding:16px 18px}
 #ip_overview .ip-cols h3{margin:0 0 6px;font-size:14px;font-weight:650}

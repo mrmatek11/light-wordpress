@@ -211,6 +211,35 @@ function ip_recent( $type ) {
 	return $q->found_posts;
 }
 
+function ip_weekly( $from_where, $col ) {
+	global $wpdb;
+	$now  = current_time( 'mysql' );
+	$rows = $wpdb->get_results( $wpdb->prepare(
+		"SELECT FLOOR(DATEDIFF(%s, $col) / 7) AS w, COUNT(*) AS n $from_where AND $col > DATE_SUB(%s, INTERVAL 49 DAY) GROUP BY w",
+		$now,
+		$now
+	) );
+	$out = array_fill( 0, 7, 0 );
+	foreach ( $rows as $r ) {
+		if ( $r->w >= 0 && $r->w < 7 ) {
+			$out[ 6 - $r->w ] = (int) $r->n;
+		}
+	}
+	return $out;
+}
+
+function ip_bars( $weeks ) {
+	if ( ! $weeks ) {
+		return '';
+	}
+	$max  = max( 1, max( $weeks ) );
+	$html = '<span class="ip-bars" aria-hidden="true">';
+	foreach ( $weeks as $i => $n ) {
+		$html .= sprintf( '<i style="height:%dpx"%s></i>', 3 + round( 23 * $n / $max ), 6 === $i ? ' class="ip-now"' : '' );
+	}
+	return $html . '</span>';
+}
+
 function ip_overview() {
 	$posts     = wp_count_posts();
 	$pages     = wp_count_posts( 'page' );
@@ -223,22 +252,27 @@ function ip_overview() {
 		'count_total' => true,
 	) ) )->get_total();
 	$month     = ip_t( 'in 30 days', 'w 30 dni' );
+	global $wpdb;
+	$posts_sql = function ( $type ) use ( $wpdb ) {
+		return $wpdb->prepare( "FROM $wpdb->posts WHERE post_type = %s AND post_status = 'publish'", $type );
+	};
 	$stats     = array(
-		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php', '#5b45e0', '+' . number_format_i18n( ip_recent( 'post' ) ) . ' ' . $month ),
-		array( 'drafts', ip_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft', '#b45309', ip_t( 'waiting to publish', 'czeka na publikację' ) ),
-		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page', '#2563eb', '+' . number_format_i18n( ip_recent( 'page' ) ) . ' ' . $month ),
-		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php', '#047857', number_format_i18n( $comments->moderated ) . ' ' . ip_t( 'awaiting moderation', 'do moderacji' ) ),
-		array( 'users', __( 'Users' ), $users['total_users'], 'users.php', '#be185d', '+' . number_format_i18n( $new_users ) . ' ' . $month ),
+		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php', '#5b45e0', ip_weekly( $posts_sql( 'post' ), 'post_date' ), '+' . number_format_i18n( ip_recent( 'post' ) ) . ' ' . $month ),
+		array( 'drafts', ip_t( 'Drafts', 'Szkice' ), $posts->draft, 'edit.php?post_status=draft', '#d97706', null, ip_t( 'waiting to publish', 'czeka na publikację' ) ),
+		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page', '#2563eb', ip_weekly( $posts_sql( 'page' ), 'post_date' ), '+' . number_format_i18n( ip_recent( 'page' ) ) . ' ' . $month ),
+		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php', '#059669', ip_weekly( "FROM $wpdb->comments WHERE comment_approved = '1'", 'comment_date' ), number_format_i18n( $comments->moderated ) . ' ' . ip_t( 'awaiting moderation', 'do moderacji' ) ),
+		array( 'users', __( 'Users' ), $users['total_users'], 'users.php', '#db2777', ip_weekly( "FROM $wpdb->users WHERE 1=1", 'user_registered' ), '+' . number_format_i18n( $new_users ) . ' ' . $month ),
 	);
 	echo '<div class="ip-stats">';
-	foreach ( $stats as list( $icon, $label, $n, $url, $c, $sub ) ) {
+	foreach ( $stats as list( $icon, $label, $n, $url, $c, $weeks, $sub ) ) {
 		printf(
-			'<a class="ip-stat" href="%s" style="--c:%s"><span class="ip-h"><i class="ip-i ip-i-%s"></i>%s</span><b>%s</b><small>%s</small></a>',
+			'<a class="ip-stat" href="%s" style="--c:%s"><span class="ip-h">%s<i class="ip-i ip-i-%s"></i></span><span class="ip-n"><b>%s</b>%s</span><small>%s</small></a>',
 			esc_url( admin_url( $url ) ),
 			esc_attr( $c ),
-			esc_attr( $icon ),
 			esc_html( $label ),
+			esc_attr( $icon ),
 			esc_html( number_format_i18n( $n ) ),
+			ip_bars( $weeks ),
 			esc_html( $sub )
 		);
 	}
