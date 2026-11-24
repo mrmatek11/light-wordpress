@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside>
+  <div class="brand"><span class="logo">C</span><b id="site">Panel</b></div>
+  <nav>
+    <a class="on" href="#dashboard">Dashboard</a>
+    <a href="/wp-admin/edit.php">Wpisy</a>
+    <a href="/wp-admin/edit.php?post_type=page">Strony</a>
+    <a href="/wp-admin/upload.php">Media</a>
+    <a href="/wp-admin/edit-comments.php">Komentarze</a>
+    <a href="/wp-admin/users.php">Użytkownicy</a>
+    <small>Ogólne</small>
+    <a href="/wp-admin/options-general.php">Ustawienia</a>
+    <a href="/">Zobacz stronę ↗</a>
+  </nav>
+</aside>
+<main>
+  <h1>Dashboard</h1>
+  <section class="stats" id="stats"></section>
+  <div class="cols">
+    <section class="card"><h2>Ostatnie wpisy</h2><div id="posts" class="list"></div></section>
+    <section class="card"><h2>Ostatnie komentarze</h2><div id="comments" class="list"></div></section>
+  </div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
