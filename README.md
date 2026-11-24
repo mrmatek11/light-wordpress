@@ -1,4 +1,4 @@
-> Fork of [ClassicPress](https://github.com/ClassicPress/ClassicPress) at 9e36410. Custom admin UI lives in `panel/` (vanilla JS, REST API). Core is untouched; update by re-copying upstream.
+> Fork of [ClassicPress](https://github.com/ClassicPress/ClassicPress) at 9e36410. Modern white-label admin lives in `src/wp-content/mu-plugins/interpaste*` (CSS + hooks, no core edits). Update core by re-copying upstream.
 
 <a href="https://www.classicpress.net"><img src="src/wp-admin/images/classicpress-logo.png" height="63"></a>
 

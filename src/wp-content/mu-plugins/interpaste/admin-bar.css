@@ -1,0 +1,31 @@
+/* Top bar — loaded in admin and on the front end for logged-in users. */
+#wpadminbar{background:#1f1646;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px}
+#wpadminbar .ab-top-menu>li:hover>.ab-item,
+#wpadminbar .ab-top-menu>li.hover>.ab-item,
+#wpadminbar:not(.mobile) .ab-top-menu>li>.ab-item:focus{background:rgba(255,255,255,.08);color:#fff}
+#wpadminbar .menupop .ab-sub-wrapper{background:#fff;border-radius:12px;box-shadow:0 12px 32px rgba(20,16,50,.18);padding:6px;margin-top:4px;border:1px solid #e7e8f0}
+#wpadminbar .menupop .ab-sub-wrapper .ab-item{color:#161827!important;border-radius:8px;padding:0 10px!important}
+#wpadminbar .menupop .ab-sub-wrapper li:hover>.ab-item{background:#f1effe!important;color:#5b45e0!important}
+#wpadminbar .quicklinks .menupop ul.ab-sub-secondary{background:#f7f7fb;border-radius:8px}
+#wpadminbar #wp-admin-bar-ip-brand>.ab-item{display:flex;align-items:center;gap:10px;font-weight:600;color:#fff;padding-left:16px;min-width:200px}
+#wpadminbar #wp-admin-bar-ip-brand img{width:28px;height:28px;border-radius:8px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+#wpadminbar #wp-admin-bar-my-account>.ab-item{display:flex;align-items:center;gap:10px}
+#wpadminbar #wp-admin-bar-my-account>.ab-item img{width:28px;height:28px;border-radius:50%;margin:0;position:static;float:none}
+#wpadminbar #wp-admin-bar-user-info .avatar{border-radius:12px}
+@media screen and (min-width:783px){
+:root{--wp-admin--admin-bar--height:48px}
+html.wp-toolbar{padding-top:48px}
+#wpadminbar{height:48px}
+#wpadminbar .quicklinks>ul>li>.ab-item,
+#wpadminbar .quicklinks>ul>li>.ab-empty-item{height:48px;line-height:48px;padding:0 12px}
+#wpadminbar .quicklinks{display:flex;justify-content:space-between}
+#wpadminbar #wp-admin-bar-root-default{display:flex}
+#wpadminbar #wp-admin-bar-top-secondary{float:none;display:flex}
+#wpadminbar #wp-admin-bar-ip-brand{order:-1}
+#wpadminbar #wp-admin-bar-menu-toggle{order:-2}
+#wpadminbar .quicklinks>ul>li>.ab-item{display:flex;align-items:center}
+#wpadminbar .quicklinks>ul>li>.ab-item .ab-icon{top:0;padding:0;margin-right:6px;display:flex;align-items:center}
+}
+@media screen and (max-width:782px){
+	#wpadminbar #wp-admin-bar-ip-brand{display:none}
+}

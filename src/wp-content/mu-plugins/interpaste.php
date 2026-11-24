@@ -1,0 +1,184 @@
+<?php
+/**
+ * Plugin Name: Interpaste Admin
+ * Description: Modern, white-labelled admin UI. Lives in mu-plugins so core stays untouched and updatable.
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+const IP_BRAND = 'Interpaste';
+
+function ip_url( $file ) {
+	return content_url( 'mu-plugins/interpaste/' . $file );
+}
+
+/* ---------- White-label ---------- */
+
+// Every translatable core string that names the platform. Covers titles, notices, footers, login.
+function ip_rebrand( $text ) {
+	return str_replace( array( 'ClassicPress', 'WordPress' ), IP_BRAND, $text );
+}
+add_filter( 'gettext', 'ip_rebrand' );
+add_filter( 'gettext_with_context', 'ip_rebrand' );
+add_filter( 'ngettext', 'ip_rebrand' );
+
+add_filter( 'admin_footer_text', '__return_empty_string' );
+add_filter( 'update_footer', '__return_empty_string', 11 );
+remove_action( 'wp_head', 'wp_generator' );
+add_filter( 'the_generator', '__return_empty_string' );
+
+add_action( 'admin_head', function () {
+	$screen = get_current_screen();
+	if ( $screen ) {
+		$screen->remove_help_tabs();
+	}
+} );
+
+// Core update nags are for the developer, not the client.
+add_action( 'admin_init', function () {
+	remove_action( 'admin_notices', 'update_nag', 3 );
+	remove_action( 'network_admin_notices', 'update_nag', 3 );
+	remove_action( 'admin_notices', 'maintenance_nag', 10 );
+} );
+
+add_action( 'admin_bar_menu', function ( $bar ) {
+	foreach ( array( 'wp-logo', 'cp-logo', 'about', 'cp-debugging', 'updates' ) as $id ) {
+		$bar->remove_node( $id );
+	}
+	$bar->add_node( array(
+		'id'    => 'ip-brand',
+		'title' => '<img src="' . esc_url( ip_url( 'logo.png' ) ) . '" alt=""><span>' . IP_BRAND . '</span>',
+		'href'  => admin_url(),
+		'meta'  => array( 'class' => 'ip-brand' ),
+	) );
+	// Greeting without "Howdy".
+	$account = $bar->get_node( 'my-account' );
+	if ( $account ) {
+		$user = wp_get_current_user();
+		$bar->add_node( array(
+			'id'    => 'my-account',
+			'title' => esc_html( $user->display_name ) . get_avatar( $user->ID, 28 ),
+		) );
+	}
+}, 999 );
+
+// Fresh installs ship a sample comment authored by "A ClassicPress Commenter" with upstream URLs.
+add_action( 'wp_install', function () {
+	wp_delete_comment( 1, true );
+} );
+
+/* ---------- Login screen ---------- */
+
+add_filter( 'login_headerurl', 'home_url' );
+add_filter( 'login_headertext', function () {
+	return get_bloginfo( 'name' );
+} );
+add_action( 'login_enqueue_scripts', function () {
+	wp_enqueue_style( 'ip-login', ip_url( 'login.css' ), array( 'login' ), filemtime( __DIR__ . '/interpaste/login.css' ) );
+	wp_add_inline_style( 'ip-login', '.login h1 a{background-image:url(' . esc_url( ip_url( 'logo.png' ) ) . ')!important}' );
+} );
+
+/* ---------- Admin theme ---------- */
+
+// Stroke icons (Lucide, ISC licence) for core menu items. Plugin menus keep their own icon.
+function ip_icons() {
+	return array(
+		'dashboard'  => '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+		'posts'      => '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/>',
+		'media'      => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+		'pages'      => '<path d="M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8Z"/><path d="m22 12.6-9.2 4.2a2 2 0 0 1-1.6 0L2 12.6"/><path d="m22 17.6-9.2 4.2a2 2 0 0 1-1.6 0L2 17.6"/>',
+		'comments'   => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+		'appearance' => '<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.3a1.8 1.8 0 0 0-1.4 2.8l.3.4a1.8 1.8 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/>',
+		'plugins'    => '<path d="M12 22v-5M9 8V2M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+		'users'      => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+		'tools'      => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>',
+		'settings'   => '<path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+	);
+}
+
+function ip_svg_uri( $inner ) {
+	$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $inner . '</svg>';
+	return 'url("data:image/svg+xml,' . rawurlencode( $svg ) . '")';
+}
+
+add_action( 'admin_enqueue_scripts', function () {
+	wp_enqueue_style( 'ip-admin-bar', ip_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/interpaste/admin-bar.css' ) );
+	wp_enqueue_style( 'ip-admin', ip_url( 'admin.css' ), array( 'colors' ), filemtime( __DIR__ . '/interpaste/admin.css' ) );
+	$css = '';
+	foreach ( ip_icons() as $id => $inner ) {
+		$css .= "#adminmenu #menu-$id .wp-menu-image:before{content:'';background:currentColor;display:block;width:20px;height:20px;padding:0;margin:10px auto;-webkit-mask:" . ip_svg_uri( $inner ) . ' center/20px no-repeat;mask:' . ip_svg_uri( $inner ) . ' center/20px no-repeat}';
+	}
+	wp_add_inline_style( 'ip-admin', $css );
+}, 99 );
+
+// Same top bar look on the front end for logged-in users.
+add_action( 'wp_enqueue_scripts', function () {
+	if ( is_admin_bar_showing() ) {
+		wp_enqueue_style( 'ip-admin-bar', ip_url( 'admin-bar.css' ), array( 'admin-bar' ), filemtime( __DIR__ . '/interpaste/admin-bar.css' ) );
+	}
+} );
+
+/* ---------- Dashboard ---------- */
+
+add_action( 'wp_dashboard_setup', function () {
+	global $wp_meta_boxes;
+	$wp_meta_boxes['dashboard'] = array();
+	wp_add_dashboard_widget( 'ip_overview', __( 'Overview' ), 'ip_overview' );
+}, 999 );
+add_filter( 'get_user_option_screen_layout_dashboard', function () {
+	return 1;
+} );
+
+function ip_overview() {
+	$posts    = wp_count_posts();
+	$pages    = wp_count_posts( 'page' );
+	$comments = wp_count_comments();
+	$users    = count_users();
+	$stats    = array(
+		array( 'posts', __( 'Posts' ), $posts->publish, 'edit.php' ),
+		array( 'posts', __( 'Drafts' ), $posts->draft, 'edit.php?post_status=draft' ),
+		array( 'pages', __( 'Pages' ), $pages->publish, 'edit.php?post_type=page' ),
+		array( 'comments', __( 'Comments' ), $comments->approved, 'edit-comments.php' ),
+		array( 'users', __( 'Users' ), $users['total_users'], 'users.php' ),
+	);
+	echo '<div class="ip-stats">';
+	foreach ( $stats as list( $icon, $label, $n, $url ) ) {
+		printf(
+			'<a class="ip-stat" href="%s"><i class="ip-i ip-i-%s"></i><span>%s</span><b>%s</b></a>',
+			esc_url( admin_url( $url ) ),
+			esc_attr( $icon ),
+			esc_html( $label ),
+			esc_html( number_format_i18n( $n ) )
+		);
+	}
+	echo '</div><div class="ip-cols"><section><h3>' . esc_html__( 'Recently Published' ) . '</h3>';
+	$recent = get_posts( array( 'numberposts' => 6, 'post_status' => array( 'publish', 'draft', 'pending', 'future' ) ) );
+	foreach ( $recent as $p ) {
+		$status = get_post_status_object( $p->post_status );
+		printf(
+			'<a class="ip-row" href="%s"><span>%s</span><em><mark class="ip-pill ip-%s">%s</mark>%s</em></a>',
+			esc_url( get_edit_post_link( $p ) ),
+			esc_html( get_the_title( $p ) ?: __( '(no title)' ) ),
+			esc_attr( $p->post_status ),
+			esc_html( $status ? $status->label : $p->post_status ),
+			esc_html( get_the_date( '', $p ) )
+		);
+	}
+	echo '</section><section><h3>' . esc_html__( 'Recent Comments' ) . '</h3>';
+	foreach ( get_comments( array( 'number' => 6, 'status' => 'approve' ) ) as $c ) {
+		printf(
+			'<a class="ip-row" href="%s"><span><b>%s</b> %s</span><em>%s</em></a>',
+			esc_url( admin_url( 'comment.php?action=editcomment&c=' . $c->comment_ID ) ),
+			esc_html( $c->comment_author ),
+			esc_html( wp_trim_words( $c->comment_content, 10 ) ),
+			esc_html( get_comment_date( '', $c ) )
+		);
+	}
+	echo '</section></div>';
+	// Icons for the stat cards reuse the menu set.
+	echo '<style>';
+	foreach ( array( 'posts', 'pages', 'comments', 'users' ) as $id ) {
+		echo '.ip-i-' . $id . ':after{-webkit-mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat;mask:' . ip_svg_uri( ip_icons()[ $id ] ) . ' center/20px no-repeat}';
+	}
+	echo '</style>';
+}
