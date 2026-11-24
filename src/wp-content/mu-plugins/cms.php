@@ -158,7 +158,9 @@ add_action( 'wp_install', function () {
 	update_option( 'WPLANG', 'pl_PL' );
 } );
 
-add_filter( 'login_headerurl', 'home_url' );
+add_filter( 'login_headerurl', function () {
+	return home_url( '/' );
+} );
 add_filter( 'login_headertitle', function () {
 	return get_bloginfo( 'name' );
 } );
